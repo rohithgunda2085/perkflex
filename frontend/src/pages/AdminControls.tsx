@@ -17,6 +17,11 @@ export function AdminControlsSection() {
   const [flight, setFlight] = useState("");
   const [benefit, setBenefit] = useState("bag");
   const [discount, setDiscount] = useState("20");
+  const [ruleKind, setRuleKind] = useState<"SEASON" | "FESTIVAL">("FESTIVAL");
+  const [ruleName, setRuleName] = useState("");
+  const [ruleStart, setRuleStart] = useState("");
+  const [ruleEnd, setRuleEnd] = useState("");
+  const [ruleMult, setRuleMult] = useState("2");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -170,6 +175,63 @@ export function AdminControlsSection() {
             </ul>
           )}
         </div>
+      </div>
+      <div className="control-card season-card">
+        <h3>Seasons and festivals</h3>
+        <p>
+          The flight award ({fmt(policy.flightAward ?? 25)} points) is multiplied for flights on these dates, so slow periods
+          and holidays can earn more. Where two rules overlap, the higher one applies. The most is x3.
+        </p>
+        <ul aria-label="Season and festival rules">
+          {data.seasonRules.map((r) => (
+            <li key={r.id}>
+              <Pill tone={r.kind === "FESTIVAL" ? "lavender" : "mint"}>{r.kind === "FESTIVAL" ? "Festival" : "Season"}</Pill>{" "}
+              {r.name} · {r.start} to {r.end} · x{r.multiplier} · {r.bookings} open booking{r.bookings === 1 ? "" : "s"} in this window{" "}
+              <button
+                className="text-button"
+                aria-label={`Remove ${r.name} ${r.start}`}
+                onClick={() => void run(api.adminSeasonRuleRemove(r.id))}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="control-row">
+          <label>
+            Type
+            <select value={ruleKind} onChange={(e) => setRuleKind(e.target.value as "SEASON" | "FESTIVAL")}>
+              <option value="FESTIVAL">Festival</option>
+              <option value="SEASON">Season</option>
+            </select>
+          </label>
+          <label>
+            Name
+            <input value={ruleName} onChange={(e) => setRuleName(e.target.value)} />
+          </label>
+          <label>
+            From
+            <input type="date" value={ruleStart} onChange={(e) => setRuleStart(e.target.value)} />
+          </label>
+          <label>
+            To
+            <input type="date" value={ruleEnd} onChange={(e) => setRuleEnd(e.target.value)} />
+          </label>
+          <label>
+            Multiplier (1 to 3)
+            <input inputMode="decimal" value={ruleMult} onChange={(e) => setRuleMult(e.target.value)} />
+          </label>
+        </div>
+        <button
+          className="button secondary small-button"
+          onClick={() =>
+            void run(
+              api.adminSeasonRule({ kind: ruleKind, name: ruleName, start: ruleStart, end: ruleEnd, multiplier: Number(ruleMult) }),
+            )
+          }
+        >
+          Add rule
+        </button>
       </div>
       <h3>Change log</h3>
       {data.audit.length === 0 ? (

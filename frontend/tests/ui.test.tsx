@@ -584,7 +584,7 @@ test("the assistant sends the form and the typed request, and shows the server's
   await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
   await user.click(screen.getByRole("button", { name: /Meet PerkFlex AI/ }));
   await user.type(
-    screen.getByLabelText(/in your own words/),
+    screen.getByLabelText(/Tell me about your trip/),
     "Two bags, near the front, refundable, under $400",
   );
   await user.click(screen.getByRole("button", { name: /Find my best fare/ }));
@@ -608,6 +608,62 @@ test("the assistant sends the form and the typed request, and shows the server's
   assert.equal(sent.from, "DAL");
   assert.equal(sent.to, "DEN");
   assert.equal(sent.needs.budget, 450);
+});
+
+test("Fill in for me turns the traveller's words into the form, marks what it set, and the form is then what is sent", async () => {
+  server(newcomer());
+  on("POST", "/assistant/understand", () => ({
+    json: {
+      source: "ai",
+      needs: { ...needs, bags: 2, seat: "front", refund: true, budget: 400 },
+      changed: ["bags", "seat", "refund", "budget"],
+      summary: "I set 2 checked bags, a seat near the front, a refundable ticket and a budget of $400. Change anything below, then press Find my best fare.",
+    },
+  }));
+  on("POST", "/assistant/best-fare", () => aiAnswer);
+  const user = setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
+  await user.click(screen.getByRole("button", { name: /Meet PerkFlex AI/ }));
+  await user.type(screen.getByLabelText(/Tell me about your trip/), "Two bags, near the front, refundable, under $400");
+  await user.click(screen.getByRole("button", { name: /Fill in for me/ }));
+
+  assert.match((await screen.findByRole("status")).textContent!, /I set 2 checked bags, a seat near the front/);
+  assert.equal(screen.getByRole("button", { name: "2" }).getAttribute("aria-pressed"), "true");
+  assert.equal(screen.getByRole("button", { name: /Sit near the front/ }).getAttribute("aria-pressed"), "true");
+  assert.equal(screen.getByRole("button", { name: /Refundable ticket/ }).getAttribute("aria-pressed"), "true");
+  assert.equal(screen.getByRole("button", { name: /Extra legroom/ }).getAttribute("aria-pressed"), "false");
+  assert.ok(screen.getByText("$400.00"));
+  assert.ok(screen.getByRole("button", { name: /Sit near the front/ }).className.includes("just-set"));
+  assert.deepEqual(callsTo("POST", "/assistant/understand")[0].body, { message: "Two bags, near the front, refundable, under $400", needs });
+
+  // a hand edit clears the marks and keeps the rest
+  await user.click(screen.getByRole("button", { name: /Board earlier/ }));
+  assert.ok(!screen.getByRole("button", { name: /Sit near the front/ }).className.includes("just-set"));
+  assert.equal(screen.getByRole("button", { name: /Sit near the front/ }).getAttribute("aria-pressed"), "true");
+
+  await user.click(screen.getByRole("button", { name: /Find my best fare/ }));
+  await screen.findByRole("heading", { name: /Choice Extra. That’s your fit/ });
+  const sent = callsTo("POST", "/assistant/best-fare")[0].body!;
+  assert.equal(sent.message, undefined, "words already turned into the form are not sent again");
+  assert.equal(sent.needs.bags, 2);
+  assert.equal(sent.needs.early, true);
+  assert.equal(sent.needs.budget, 400);
+});
+
+test("Fill in for me says so when it cannot read the text, and the form still works", async () => {
+  server(newcomer());
+  on("POST", "/assistant/understand", () => "network-error");
+  const user = setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
+  await user.click(screen.getByRole("button", { name: /Meet PerkFlex AI/ }));
+  assert.ok(screen.getByRole("button", { name: /Fill in for me/ }).hasAttribute("disabled"), "nothing typed yet");
+  await user.type(screen.getByLabelText(/Tell me about your trip/), "two bags");
+  await user.click(screen.getByRole("button", { name: /Fill in for me/ }));
+  assert.match((await screen.findByRole("status")).textContent!, /couldn’t read that/);
+  await user.click(screen.getByRole("button", { name: "2" }));
+  assert.equal(screen.getByRole("button", { name: "2" }).getAttribute("aria-pressed"), "true");
 });
 
 test("if the assistant cannot be reached the traveller can try again", async () => {
@@ -656,6 +712,7 @@ test("booking: server-priced fares, a review, one book request, then the confirm
   render(<App />);
   await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
   await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  await user.click(await screen.findByRole("button", { name: /Skip, show fares/ }));
 
   await user.click(
     await screen.findByRole("button", {
@@ -700,6 +757,7 @@ test("a booking the server refuses is reported and no confirmation is shown", as
   render(<App />);
   await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
   await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  await user.click(await screen.findByRole("button", { name: /Skip, show fares/ }));
   await user.click(
     await screen.findByRole("button", {
       name: "Select Choice Extra",
@@ -726,6 +784,7 @@ test("any pair of airports can be searched: the chosen route goes to the server 
   await user.selectOptions(screen.getByLabelText(/Depart from/), "LAS");
   await user.selectOptions(screen.getByLabelText(/Arrive at/), "PHX");
   await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  await user.click(await screen.findByRole("button", { name: /Skip, show fares/ }));
   await user.click(
     await screen.findByRole("button", {
       name: "Select Choice Extra",
@@ -991,6 +1050,30 @@ test("a perk the traveller lacks is bought with points; the lane cannot be bough
   assert.ok(within(section).getByText("Need 200 more pts"), "boarding is 900 points and the balance is 700");
   assert.ok(within(section).getByRole("button", { name: "Add with points" }), "the 600-point drink is affordable");
   assert.ok(!within(section).queryByText("Priority lane"), "priority lane is not for sale");
+});
+
+test("when the points do not cover a price, the traveller is pointed to Southwest to buy Rapid Rewards points", async () => {
+  server(rohith({ balance: 700, booking: trip({ perks: perksFor() }) }));
+  withNoNudge();
+  const user = setup();
+  render(<App />);
+  await dismissWelcome(user);
+  const section = screen.getByRole("region", { name: "Small perks" });
+  const link = within(section).getByRole("link", { name: /Buy Rapid Rewards points on Southwest.com/ });
+  assert.equal(link.getAttribute("href"), "https://www.southwest.com/rapid-rewards/points/buy-gift-transfer/");
+  assert.equal(link.getAttribute("target"), "_blank");
+  assert.match(link.getAttribute("rel")!, /noopener/);
+  assert.match(section.textContent!, /PerkFlex points are used first, then Rapid Rewards/);
+});
+
+test("the welcome screen after login shows the traveller's status and both balances", async () => {
+  server(rohith());
+  render(<App />);
+  const dialog = await welcome();
+  assert.match(dialog.textContent!, /member/i);
+  const points = within(dialog).getByLabelText("Your points");
+  assert.match(points.textContent!, /Rapid Rewards/);
+  assert.match(points.textContent!, /PerkFlex/);
 });
 
 test("the airport meal voucher is for sale, never offered for release, and says it is a concept add-on", async () => {
@@ -1847,4 +1930,57 @@ test("if the settings cannot be loaded the overview still works", async () => {
   render(<App />);
   await screen.findByText("What PerkFlex is costing, flight by flight");
   assert.ok(!screen.queryByRole("region", { name: "Airline settings" }));
+});
+
+test("Book a flight shows the search form with no pop-up, and Search flights recommends PerkFlex AI before fares", async () => {
+  server(newcomer());
+  on("POST", "/quotes", () => quotesReply());
+  const user = setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
+  await user.click(screen.getByRole("button", { name: "Book a flight", exact: true }));
+  assert.ok(!screen.queryByRole("dialog"), "the form is not covered");
+  assert.ok(screen.getByLabelText(/Depart from/));
+  await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  const ask = await screen.findByRole("dialog");
+  assert.match(ask.textContent!, /Dallas \(Love Field\) \(DAL\) to Denver \(DEN\)/);
+  await user.click(within(ask).getByRole("button", { name: /Meet PerkFlex AI/ }));
+  const assistant = await screen.findByRole("dialog");
+  assert.match(assistant.textContent!, /Denver \(DEN\)/, "the assistant shows the route");
+});
+
+test("the fare results say when a flight earns extra PerkFlex points for its season or festival", async () => {
+  server(newcomer());
+  on("POST", "/quotes", () => ({
+    json: { ...quotesReply().json, award: { base: 25, points: 50, multiplier: 2, label: "Thanksgiving", note: "Thanksgiving x2" } },
+  }));
+  const user = setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
+  await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  await user.click(await screen.findByRole("button", { name: /Skip, show fares/ }));
+  const badge = await screen.findByText(/Thanksgiving: earn 50 PerkFlex points \(x2\)/);
+  assert.ok(badge);
+});
+
+test("the Book a flight page shows the soonest season or festival boost, and the fare results mention a better nearby date", async () => {
+  server({
+    ...newcomer(),
+    promos: [{ kind: "SEASON", name: "Autumn off-peak", start: "2026-10-05", end: "2026-11-19", multiplier: 2, points: 50 }],
+  });
+  on("POST", "/quotes", () => ({
+    json: {
+      ...quotesReply().json,
+      award: { base: 25, points: 25, multiplier: 1, label: null, note: null, nearby: { date: "2027-12-18", points: 50, label: "Christmas and New Year", multiplier: 2 } },
+    },
+  }));
+  const user = setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Hi, Michael Rankin/ });
+  const strip = screen.getAllByRole("note")[0];
+  assert.match(strip.textContent!, /Oct 5 to Nov 19/);
+  assert.match(strip.textContent!, /double PerkFlex points/);
+  await user.click(screen.getByRole("button", { name: /Search flights/ }));
+  await user.click(await screen.findByRole("button", { name: /Skip, show fares/ }));
+  assert.ok(await screen.findByText(/Flying on Dec 18 instead earns 50 PerkFlex points \(Christmas and New Year\)/));
 });

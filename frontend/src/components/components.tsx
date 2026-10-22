@@ -193,6 +193,26 @@ export function LinkButton({
     </button>
   );
 }
+export const earnWords = (m: number) => (m === 2 ? "double" : m === 3 ? "triple" : `${m}x`);
+export const shortDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+export const BUY_RAPID_REWARDS_URL =
+  "https://www.southwest.com/rapid-rewards/points/buy-gift-transfer/";
+
+/** Shown when a traveller's PerkFlex and Rapid Rewards points together do not cover a price. PerkFlex does not sell points. */
+export function BuyRapidRewards() {
+  return (
+    <p className="buy-rr">
+      PerkFlex points are used first, then Rapid Rewards.{" "}
+      <a href={BUY_RAPID_REWARDS_URL} target="_blank" rel="noopener noreferrer">
+        Buy Rapid Rewards points on Southwest.com
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>
+    </p>
+  );
+}
+
 export function SkyIllustration() {
   return (
     <div className="sky-scene" aria-hidden="true">
@@ -244,7 +264,8 @@ export function SkyIllustration() {
             />
           </filter>
         </defs>
-        <g filter="url(#plane-shadow)" transform="rotate(-12 380 205)">
+        <g filter="url(#plane-shadow)" transform="rotate(-14 380 205)">
+          <g transform="translate(760 0) scale(-1 1)">
           <path d="m377 219 78-129 41-5-47 154Z" fill="#bfcee6" />
           <path d="m573 185 44-117 30 1-2 136Z" fill="url(#tail)" />
           <path d="m617 68 12 1-19 124-20-4Z" fill="#e73443" />
@@ -279,15 +300,16 @@ export function SkyIllustration() {
           <ellipse cx="447" cy="283" rx="11" ry="17" fill="#173b89" />
           <ellipse cx="447" cy="283" rx="6" ry="11" fill="#7093ca" />
           <path d="m591 224 54 51 26-1-36-58Z" fill="#a7bce0" />
+          </g>
         </g>
         <path
-          d="M46 115c45-41 110-65 166-47"
+          d="M46 330c60 20 130 10 190-30"
           stroke="white"
           strokeWidth="2"
           strokeDasharray="5 9"
           opacity=".65"
         />
-        <circle cx="47" cy="115" r="5" fill="white" />
+        <circle cx="47" cy="330" r="5" fill="white" />
       </svg>
       <div className="flying-perk perk-bag">
         <span>✦</span> Your perks. Your choice.

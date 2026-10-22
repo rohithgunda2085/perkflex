@@ -28,7 +28,11 @@ def perk_advice(body: AdviceRequest, session: Session = Depends(traveller_sessio
             state = build_state(conn, session.passenger_id, settings)  # type: ignore[arg-type]
         except LookupError:
             raise HTTPException(status_code=404, detail="Unknown traveller.")
-    return advise(build_context(state), body).model_dump(by_alias=True)
+    out = advise(build_context(state), body).model_dump(by_alias=True)
+    rewards = state.get("rewards") or {}
+    if rewards.get("awardNote"):  # a rules line about the season or festival, added outside the model's text
+        out["promo"] = f"This flight earns {rewards['flightAward']} PerkFlex points when you complete the trip ({rewards['awardNote']})."
+    return out
 
 
 @router.get("/assistant/perk-nudge")

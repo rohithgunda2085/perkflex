@@ -2,7 +2,7 @@ import { ChevronRight, GlassWater, Luggage, PlaneTakeoff, RefreshCw, Ticket, Ute
 import type { Perk, PerkId } from "../rules/types.ts";
 import { fmt } from "../rules/data.ts";
 import { payLabel, paySplit } from "../rules/helpers.ts";
-import { Pill } from "../components/components.tsx";
+import { BuyRapidRewards, Pill } from "../components/components.tsx";
 import type { Confirmation } from "./Checkin.tsx";
 
 const ICON = { boarding: PlaneTakeoff, drink: GlassWater, lane: Zap, standby: RefreshCw, overweight: Luggage, meal: UtensilsCrossed } as const;
@@ -141,6 +141,7 @@ export function SmallPerks({
                       : "Add with points"}
                     {available >= p.redeemPoints && <ChevronRight size={16} />}
                   </button>
+                  {available < p.redeemPoints && <BuyRapidRewards />}
                 </>
               )}
             </article>

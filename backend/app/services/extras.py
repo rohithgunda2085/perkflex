@@ -32,6 +32,7 @@ def policy_view(conn: psycopg.Connection) -> dict[str, Any]:
         "valuePercent": r["value_percent"],
         "centsPerPoint": float(r["cents_per_point"]),
         "completionBonus": r["completion_bonus"],
+        "flightAward": r["flight_award"],
     }
 
 

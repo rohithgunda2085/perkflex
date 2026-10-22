@@ -534,7 +534,7 @@ def test_a_trade_goes_to_perkflex_and_flying_goes_to_rapid_rewards(client):
     assert "+1,040 PerkFlex (released benefits)" in done["notice"] and "+50 PerkFlex (completion bonus)" in done["notice"]
     assert "Rapid Rewards (flying)" in done["notice"]
     after = done["wallets"]
-    assert after["perkflex"]["available"] == before["perkflex"]["available"] + 1040 + 50  # the release and the completion bonus
+    assert after["perkflex"]["available"] == before["perkflex"]["available"] + 1040 + 50 + 25  # the release, the completion bonus and the flight award
     assert after["rapidRewards"]["available"] > before["rapidRewards"]["available"]  # flying points posted there
     assert after["perkflex"]["pending"] == 0 and after["rapidRewards"]["pending"] == 0
 
