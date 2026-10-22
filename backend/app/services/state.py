@@ -54,7 +54,7 @@ PERK_CODE = {
 }
 PERK_CAP = 300  # small-perk release points per booking (pf_release_perk enforces the same number)
 EXPIRY_NOTIFY_DAYS = 14  # an expiry this close becomes a notification
-UNDO_SECONDS = 60  # the undo window, in real seconds
+UNDO_SECONDS = 10  # the undo window, in real seconds
 EXPIRY_SOON_DAYS = 60
 
 # 2027 status levels (concept values; see docs/SOUTHWEST_BENEFITS.md). Shown read-only.

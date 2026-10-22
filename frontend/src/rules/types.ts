@@ -96,7 +96,7 @@ export type Perk = {
   capRoom?: boolean;
 };
 
-/** A release the traveller can still take back (5 real minutes, check-in open). */
+/** A release the traveller can still take back (10 real seconds, check-in open). */
 export type Undoable = {
   benefit: "bag" | "seat" | Exclude<PerkId, "overweight" | "meal">;
   label: string;

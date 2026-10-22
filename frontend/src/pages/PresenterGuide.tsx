@@ -116,7 +116,7 @@ export const SCENES: Scene[] = [
     title: "Changed your mind? Undo",
     login: "leena",
     who: "Leena (Choice Preferred)",
-    say: "A release can be taken back for one minute, while check-in is open and nobody has taken the seat.",
+    say: "A release can be taken back for 10 seconds, while check-in is open and nobody has taken the seat.",
     doThis: "Release the seat, then press Undo. The seat and the pending points come back.",
     steps: [
       { action: { type: "open-checkin" }, say: "Opening check-in." },

@@ -42,11 +42,11 @@ def test_a_second_undo_is_a_no_op_and_a_taken_seat_blocks_the_undo(conn):
         call(conn, "pf_undo_release(%s,%s,%s,%s)", "P01", "B01", txn, NOW)
 
 
-def test_the_undo_window_closes_after_one_real_minute(conn):
+def test_the_undo_window_closes_after_ten_real_seconds(conn):
     call(conn, "pf_open_checkin(%s,%s,%s)", "P14", "B14", NOW)
     call(conn, "pf_release_perk(%s,%s,%s,%s,%s)", "P14", "B14", "PERK_LANE", "u1", NOW)
     conn.execute("UPDATE fact_perkflex_transaction SET recorded_at = now() - interval '10 minutes' WHERE booking_id = 'B14'")
-    with pytest.raises(RaiseException, match="1-minute window"):
+    with pytest.raises(RaiseException, match="10-second window"):
         call(conn, "pf_undo_release(%s,%s,%s,%s)", "P14", "B14", last_release(conn, "B14"), NOW)
 
 

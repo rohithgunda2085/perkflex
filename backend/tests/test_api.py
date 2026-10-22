@@ -410,7 +410,7 @@ def test_a_release_can_be_undone_within_the_window_and_pending_points_go_back(cl
     client.post("/api/actions", json={"type": "release", "benefit": "drink"})
     state = client.get("/api/state").json()
     undo = [u for u in state["booking"]["undoable"] if u["benefit"] == "drink"]
-    assert undo and 0 < undo[0]["secondsLeft"] <= 60
+    assert undo and 0 < undo[0]["secondsLeft"] <= 10
     back = client.post("/api/actions", json={"type": "undo", "benefit": "drink"}).json()
     assert back["error"] is False and back["pending"] == 0 and "undone" in back["notice"].lower()
     assert not any(e["label"].lower().startswith("unused premium") for e in back["ledger"])  # the voided row is hidden
