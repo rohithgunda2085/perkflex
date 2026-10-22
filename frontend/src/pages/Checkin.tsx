@@ -42,6 +42,7 @@ import {
   UndoBar,
 } from "./Extras.tsx";
 import {
+  BuyRapidRewards,
   DateLabel,
   EmptyState,
   FlightRoute,
@@ -83,9 +84,13 @@ export function CheckinPage({
     isOpen = b.status === "booked";
   const bonusPct = state.rewards?.bonusPct ?? 0;
   const completion = state.rewards?.completionBonus ?? 0;
+  const award = state.rewards?.flightAward ?? 0;
   const bonusNote =
     (bonusPct ? ` Includes your ${bonusPct}% ${profile.tier} bonus.` : "") +
-    (completion ? ` Complete your trip and get ${completion} bonus points.` : "");
+    (completion ? ` Complete your trip and get ${completion} bonus points.` : "") +
+    (award
+      ? ` Every completed flight also earns ${award} PerkFlex points${state.rewards?.awardNote ? ` (${state.rewards.awardNote})` : ""}.`
+      : "");
   const bagReward = releaseReward(state.rewards, "bag");
   const seatReward =
     b.seatClass === "standard" ? 0 : releaseReward(state.rewards, b.seatClass);
@@ -461,6 +466,7 @@ export function CheckinPage({
                           : "Add bag with points"}
                         {available >= bagCost && <ChevronRight size={16} />}
                       </button>
+                      {available < bagCost && <BuyRapidRewards />}
                     </article>
                   )}
                   {(["preferred", "extra"] as SeatClass[])
@@ -509,6 +515,7 @@ export function CheckinPage({
                               <ChevronRight size={16} />
                             )}
                           </button>
+                          {!free && available < cost && <BuyRapidRewards />}
                         </article>
                       );
                     })}

@@ -1,5 +1,7 @@
 """The airline's reward-programme overview. Airline accounts only."""
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -7,6 +9,7 @@ from ..db import request_connection
 from ..deps import current_session
 from ..security.session import Session
 from ..services.admin import overview
+from ..services.seasons import SeasonError, add_rule, remove_rule
 from ..services.controls import ControlError, controls_view, set_sale, update_policy
 
 router = APIRouter(prefix="/api/admin")
@@ -64,5 +67,39 @@ def post_sale(body: SaleBody, session: Session = Depends(airline_session)):
         try:
             set_sale(conn, session.user_id, body.flight_id, body.benefit, body.discount_pct)
         except ControlError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return controls_view(conn)
+
+
+class SeasonRuleBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str = Field(pattern=r"^(SEASON|FESTIVAL)$")
+    name: str = Field(min_length=2, max_length=60)
+    start: date
+    end: date
+    multiplier: float = Field(ge=1, le=3)
+
+
+class SeasonRuleRemoveBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: int = Field(ge=1)
+
+
+@router.post("/season-rule")
+def post_season_rule(body: SeasonRuleBody, session: Session = Depends(airline_session)):
+    with request_connection() as conn:
+        try:
+            add_rule(conn, session.user_id, body.kind, body.name, body.start, body.end, body.multiplier)
+        except SeasonError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return controls_view(conn)
+
+
+@router.post("/season-rule/remove")
+def post_season_rule_remove(body: SeasonRuleRemoveBody, session: Session = Depends(airline_session)):
+    with request_connection() as conn:
+        try:
+            remove_rule(conn, session.user_id, body.id)
+        except SeasonError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return controls_view(conn)

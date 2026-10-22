@@ -17,7 +17,7 @@ import {
 import { PerkFlexLogo, Modal, Pill } from "../components/components.tsx";
 import { fmt, fareById, SEAT_NAMES } from "../rules/data.ts";
 import { greetingName } from "../rules/helpers.ts";
-import type { Booking, Profile } from "../rules/types.ts";
+import type { Booking, Profile, Wallets } from "../rules/types.ts";
 import { ApiError, api } from "../services/api.ts";
 
 export function LoginPage({
@@ -201,12 +201,14 @@ export function WelcomeOverlay({
   profile,
   booking,
   balance,
+  wallets,
   onClose,
   onReview,
 }: {
   profile: Profile;
   booking: Booking;
   balance: number;
+  wallets?: Wallets;
   onClose: () => void;
   onReview: () => void;
 }) {
@@ -266,6 +268,26 @@ export function WelcomeOverlay({
             <span>{greetingName(profile)}.</span>
           </h1>
           <h2>I’m PerkFlex, your travel assistant.</h2>
+          <p className="welcome-member">
+            <strong>
+              {profile.tier === "Member" ? "Rapid Rewards Member" : `${profile.tier} member`}
+            </strong>
+            {profile.card !== "None" ? ` · ${profile.card} card` : ""}
+          </p>
+          {wallets && (
+            <div className="welcome-status" aria-label="Your points">
+              <div>
+                <small>Rapid Rewards</small>
+                <strong>{fmt(wallets.rapidRewards.available)}</strong>
+                {wallets.rapidRewards.pending > 0 && <em>+{fmt(wallets.rapidRewards.pending)} after you fly</em>}
+              </div>
+              <div>
+                <small>PerkFlex</small>
+                <strong>{fmt(wallets.perkflex.available)}</strong>
+                {wallets.perkflex.pending > 0 && <em>+{fmt(wallets.perkflex.pending)} after you fly</em>}
+              </div>
+            </div>
+          )}
           <p>
             I’m here to help you get the most from your benefits and choose the
             right fare for every trip.

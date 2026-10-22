@@ -7,6 +7,7 @@ import psycopg
 from ..db import atomic
 from .extras import SALE_KEYS, SALE_NAMES, policy_view
 from .mapping import flight_code
+from .seasons import rules_view
 
 
 class ControlError(Exception):
@@ -25,6 +26,7 @@ def controls_view(conn: psycopg.Connection) -> dict[str, Any]:
     ).fetchall()
     return {
         "policy": policy_view(conn),
+        "seasonRules": rules_view(conn),
         "flights": [
             {
                 "id": f["flight_id"],

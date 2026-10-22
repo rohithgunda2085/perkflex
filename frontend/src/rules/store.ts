@@ -25,6 +25,7 @@ export function toStore(s: ServerState): Store {
     earnings: s.earnings ?? [],
     payRapidFirst: s.payRapidFirst ?? false,
     rewards: s.rewards,
+    promos: s.promos ?? [],
     status: s.status,
     notifications: s.notifications ?? [],
     prices: s.prices,

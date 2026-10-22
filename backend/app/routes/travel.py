@@ -12,6 +12,7 @@ from ..security.session import Session
 from ..services.actions import Action, perform
 from ..services.context import load_inventory, load_traveller, resolve_flight
 from ..services.mapping import flight_number
+from ..services.seasons import award_for, nearby_better
 from ..services.state import build_state, expire_due
 
 router = APIRouter(prefix="/api")
@@ -52,6 +53,8 @@ def get_quotes(body: QuoteBody, session: Session = Depends(traveller_session)):
         if flight is None:
             raise HTTPException(status_code=404, detail="No flight found.")
         inventory = load_inventory(conn, flight["flight_id"])
+        award = award_for(conn, flight["flight_date"])
+        award["nearby"] = nearby_better(conn, flight, award["points"])
     quotes = quote_fares(t.pricing, needs, body.flight_id, inventory)
     best = recommended_quote(quotes)
     return {
@@ -60,6 +63,7 @@ def get_quotes(body: QuoteBody, session: Session = Depends(traveller_session)):
         "best": best.fare if best else None,
         # What this traveller's tier, card and each fare give them, for the fare cards.
         "entitlements": {q.fare: entitlements(t.pricing, q.fare).model_dump(by_alias=True) for q in quotes},
+        "award": award,
         "flight": {
             "id": body.flight_id,
             "date": flight["flight_date"].isoformat(),

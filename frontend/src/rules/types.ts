@@ -201,6 +201,7 @@ export type Inventory = {
 /** GET /api/state and the response of every action. */
 export type ServerState = {
   profile: Profile;
+  promos?: Promo[];
   balance: number;
   pending: number;
   booking: Booking | null;
@@ -236,6 +237,7 @@ export type Store = {
   earnings: Earning[];
   payRapidFirst: boolean;
   rewards?: Rewards;
+  promos?: Promo[];
   status?: StatusView;
   notifications: Notification[];
   prices?: Prices;
@@ -254,6 +256,8 @@ export type Rewards = {
   mode?: "FLAT" | "VALUE";
   /** PerkFlex points added when a trip with a posted release is completed. */
   completionBonus?: number;
+  flightAward?: number;
+  awardNote?: string | null;
 };
 
 /** Points prices on this traveller's flight after any sale. `sales` maps a benefit to its percent off. */
@@ -339,12 +343,27 @@ export type Action =
   | { type: "complete"; profileId?: string }
   | { type: "clear-notice" };
 
+/** What a completed flight on a date earns in PerkFlex points, the season or festival behind it, and a better nearby flight if one is scheduled. */
+export type AwardInfo = {
+  base: number;
+  points: number;
+  multiplier: number;
+  label: string | null;
+  note: string | null;
+  nearby?: { date: string; points: number; label: string | null; multiplier: number } | null;
+};
+
+/** An active or upcoming season or festival boost, for the promo strip. */
+export type Promo = { kind: "SEASON" | "FESTIVAL"; name: string; start: string; end: string; multiplier: number; points: number };
+
 export type QuotesResponse = {
   needs: Needs;
   quotes: Quote[];
   best: FareId | null;
   entitlements: Record<FareId, Entitlements>;
   flight: { id: string; date: string; from: string; to: string };
+  /** The PerkFlex points a completed flight on this date earns, and the season or festival behind it. */
+  award?: AwardInfo;
 };
 
 export type BestFareRequest = {
@@ -354,6 +373,15 @@ export type BestFareRequest = {
   from: string;
   to: string;
   date?: string;
+};
+
+/** POST /api/assistant/understand: the form's settings read from what the traveller wrote. */
+export type UnderstandResponse = {
+  source: "ai" | "fallback";
+  needs: Needs;
+  /** which fields the text set: bags, seat, refund, flexible, seatNow, early, budget */
+  changed: ("bags" | "seat" | "refund" | "flexible" | "seatNow" | "early" | "budget")[];
+  summary: string;
 };
 
 export type BestFareResponse = {
@@ -367,6 +395,7 @@ export type BestFareResponse = {
   alternatives: { fare: FareId; total: number; tradeoff: string }[];
   explanation: string;
   quotes: Quote[];
+  award?: AwardInfo;
 };
 
 export type OfferId =
@@ -402,6 +431,8 @@ export type PerkAdviceResponse = {
   picks: { offerId: OfferId; why: string }[];
   /** Computed by the rules. The numbers shown come from here, never from the advisor's text. */
   offers: PerkOffer[];
+  /** A rules line about this flight's season or festival points, added outside the advisor's text. */
+  promo?: string;
 };
 
 export type PerkNudge = {
@@ -492,7 +523,8 @@ export type AdminOverview = {
 
 /** The airline's settings: reward policy, points sales and the change log. */
 export type AdminControls = {
-  policy: { mode: "FLAT" | "VALUE"; valuePercent: number; centsPerPoint: number; completionBonus: number };
+  policy: { mode: "FLAT" | "VALUE"; valuePercent: number; centsPerPoint: number; completionBonus: number; flightAward?: number };
+  seasonRules: { id: number; kind: "SEASON" | "FESTIVAL"; name: string; start: string; end: string; multiplier: number; bookings: number }[];
   flights: { id: string; label: string }[];
   benefits: { key: string; name: string }[];
   sales: { flightId: string; benefit: string; discountPct: number; setBy: string; at: string }[];

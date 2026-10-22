@@ -43,9 +43,10 @@ def test_releasing_a_bag_is_pending_then_posts_once_after_the_trip(conn, test_se
 
     out, s = act(conn, test_settings, "P14", {"type": "complete"})
     assert not out.error and "+880 PerkFlex (released benefits)" in out.notice and "+50 PerkFlex (completion bonus)" in out.notice
+    assert "+50 PerkFlex (flight award, Autumn off-peak x2)" in out.notice  # 22 Oct 2026 is in the off-peak season
     assert "Rapid Rewards (flying)" in out.notice
     assert s["booking"]["status"] == "flown" and s["pending"] == 0
-    assert s["balance"] == 12450 + 880 + 50 + 3780  # the reward, the 50-point completion bonus, and the flying points (2,700 + 40% Silver)
+    assert s["balance"] == 12450 + 880 + 50 + 50 + 3780  # the reward, the 50-point completion bonus, the off-peak flight award (25 x 2), and the flying points (2,700 + 40% Silver)
     assert s["ledger"][0]["status"] == "posted"
 
     out, s2 = act(conn, test_settings, "P14", {"type": "complete"})  # completing again posts nothing more
@@ -189,7 +190,7 @@ def test_a_new_booking_can_be_checked_in_and_completed(conn, test_settings):
     assert not out.error and s["pending"] == 800 and s["booking"]["bags"] == 1
     act(conn, test_settings, "P18", {"type": "checkin"})
     out, s = act(conn, test_settings, "P18", {"type": "complete"})
-    assert s["balance"] == 800 + 50 + 2700 and s["pending"] == 0 and s["booking"]["status"] == "flown"
+    assert s["balance"] == 800 + 50 + 25 + 2700 and s["pending"] == 0 and s["booking"]["status"] == "flown"
 
 
 def test_a_tier_traveller_booking_is_not_charged_twice_for_what_the_tier_gives(conn, test_settings):

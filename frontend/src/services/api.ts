@@ -9,6 +9,7 @@ import type {
   EmailPrefs,
   Needs,
   PerkAdviceResponse,
+  UnderstandResponse,
   PerkNudge,
   QuotesResponse,
   ServerState,
@@ -85,6 +86,9 @@ export const api = {
     request<AdminControls>("POST", "/admin/policy", body),
   adminSale: (body: { flightId: string; benefit: string; discountPct: number }) =>
     request<AdminControls>("POST", "/admin/sale", body),
+  adminSeasonRule: (body: { kind: "SEASON" | "FESTIVAL"; name: string; start: string; end: string; multiplier: number }) =>
+    request<AdminControls>("POST", "/admin/season-rule", body),
+  adminSeasonRuleRemove: (id: number) => request<AdminControls>("POST", "/admin/season-rule/remove", { id }),
   quotes: (
     route: { flightId: string; from: string; to: string; date?: string },
     needs: Needs,
@@ -92,6 +96,8 @@ export const api = {
   ) => request<QuotesResponse>("POST", "/quotes", { ...route, needs }, signal),
   bestFare: (req: BestFareRequest, signal?: AbortSignal) =>
     request<BestFareResponse>("POST", "/assistant/best-fare", req, signal),
+  understandNeeds: (req: { message: string; needs: Needs }, signal?: AbortSignal) =>
+    request<UnderstandResponse>("POST", "/assistant/understand", req, signal),
   perkNudge: (signal?: AbortSignal) =>
     request<{ nudge: PerkNudge | null }>(
       "GET",

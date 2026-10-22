@@ -71,11 +71,11 @@ def test_completing_a_trip_with_a_posted_release_adds_the_bonus_once(conn, test_
     before = state(conn, test_settings, "P07")["wallets"]["perkflex"]["available"]
     out, s = _fly(conn, test_settings, "P07")
     assert "+50 PerkFlex (completion bonus)" in out.notice
-    assert s["wallets"]["perkflex"]["available"] == before + 1040 + 50
+    assert s["wallets"]["perkflex"]["available"] == before + 1040 + 50 + 25
     assert any(e["kind"] == "bonus" and e["points"] == 50 for e in s["ledger"])
     assert any("completion bonus of 50" in n["text"] for n in s["notifications"])
     _, again = act(conn, test_settings, "P07", {"type": "complete"})
-    assert again["wallets"]["perkflex"]["available"] == before + 1040 + 50  # completing again adds nothing
+    assert again["wallets"]["perkflex"]["available"] == before + 1040 + 50 + 25  # completing again adds nothing
 
 
 def test_no_release_means_no_bonus_and_zero_switches_it_off(conn, test_settings):
@@ -84,6 +84,26 @@ def test_no_release_means_no_bonus_and_zero_switches_it_off(conn, test_settings)
     update_policy(conn, "airline", completion_bonus=0)
     out, _ = _fly(conn, test_settings, "P07")
     assert "completion bonus" not in out.notice
+
+
+def test_every_completed_flight_earns_a_small_flat_flight_award_even_without_a_release(conn, test_settings):
+    before = state(conn, test_settings, "P05")["wallets"]["perkflex"]["available"]
+    out, s = _fly(conn, test_settings, "P05", release=False)
+    assert "+25 PerkFlex (flight award)" in out.notice and "completion bonus" not in out.notice
+    assert s["wallets"]["perkflex"]["available"] == before + 25
+    assert any(e["label"] == "Flight award" and e["points"] == 25 for e in s["ledger"])
+    _, again = act(conn, test_settings, "P05", {"type": "complete"})
+    assert again["wallets"]["perkflex"]["available"] == before + 25  # once per trip
+    assert s["wallets"]["rapidRewards"]["available"] > 0  # Rapid Rewards still the main earning
+
+
+def test_the_flight_award_is_not_paid_from_the_flights_budget_and_zero_switches_it_off(conn, test_settings):
+    conn.execute("UPDATE fact_flight_campaign SET reward_budget_points = budget_reserved_points + budget_settled_points")
+    out, _ = _fly(conn, test_settings, "P05", release=False)
+    assert "+25 PerkFlex (flight award)" in out.notice  # no budget room needed
+    conn.execute("UPDATE dim_reward_policy SET flight_award = 0")
+    out, _ = _fly(conn, test_settings, "P07")
+    assert "flight award" not in out.notice
 
 
 def test_the_bonus_is_paid_from_the_flights_budget_and_skipped_when_it_has_no_room(conn, test_settings):
@@ -98,7 +118,7 @@ def test_the_bonus_is_paid_from_the_flights_budget_and_skipped_when_it_has_no_ro
 def test_bonus_points_expire_like_other_points_after_12_months(conn, test_settings):
     _fly(conn, test_settings, "P07")
     lots = conn.execute("SELECT points FROM pf_expiry_lots('P07') ORDER BY points").fetchall()
-    assert [r["points"] for r in lots] == [50, 1040]
+    assert [r["points"] for r in lots] == [25, 50, 1040]
 
 
 # ---------------------------------------------------------------- travel groups and gifts

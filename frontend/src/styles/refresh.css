@@ -1113,3 +1113,107 @@
 .email-form input[type="email"] { padding: 10px 12px; border: 1px solid #c9d2e6; border-radius: 8px; font: inherit; }
 .email-toggle { display: flex; align-items: center; gap: 8px; }
 .email-message { color: #4a5578; }
+
+.ai-prompt-box { position: relative; margin: 0 0 12px; display: grid; gap: 8px; }
+.ai-prompt-box textarea { width: 100%; box-sizing: border-box; min-height: 84px; resize: vertical; padding: 14px 16px; border: 1.5px solid #b9a7f0; border-radius: 14px; font: inherit; font-size: 15px; line-height: 1.45; color: #1c2b4a; background: #fff; box-shadow: 0 2px 10px rgba(110, 80, 200, 0.08); }
+.ai-prompt-box textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.ai-prompt-box .button { justify-self: end; }
+.ai-understood { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: #eef5ee; color: #1f4a2b; font-size: 14px; }
+.ai-understood.failed { background: #fbf1e4; color: #6b4210; }
+.just-set { outline: 2px solid #7a5ad8; outline-offset: 2px; border-radius: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.assistant-route {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff26;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.suggest-modal .suggest-route {
+  margin: 14px 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.suggest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+.buy-rr {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #4a5a85;
+}
+.buy-rr a {
+  color: #2b4bb5;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.welcome-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+.welcome-status > div {
+  flex: 1 1 140px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f1f5fd;
+}
+.welcome-status small {
+  display: block;
+  color: #5a6a92;
+  font-size: 0.74rem;
+}
+.welcome-status strong {
+  font-size: 1.15rem;
+  color: #1c2f7a;
+}
+.welcome-status em {
+  display: block;
+  font-style: normal;
+  font-size: 0.74rem;
+  color: #5a6a92;
+}
+
+.season-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff6d8;
+  color: #5b4300;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.season-card ul {
+  padding-left: 18px;
+}
+
+.promo-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 16px;
+  background: #fff6d8;
+  color: #5b4300;
+  font-size: 0.92rem;
+}
+.season-badge.subtle {
+  background: #eef3ff;
+  color: #2b3f86;
+}
+.advisor-promo {
+  font-weight: 600;
+  color: #5b4300;
+}

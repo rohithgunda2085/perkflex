@@ -327,11 +327,14 @@ def _apply(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings:
             result = _call(conn, "pf_complete_booking", t.passenger_id, booking, now)
             pf, rr = result.get("perkflex_points_posted", 0), result.get("rapid_rewards_points_posted", 0)
             bonus = result.get("completion_bonus", 0)
+            award = result.get("flight_award", 0)
+            award_note = result.get("award_note")
             parts = [
                 p
                 for p in (
                     f"+{pf:,} PerkFlex (released benefits)" if pf else "",
                     f"+{bonus:,} PerkFlex (completion bonus)" if bonus else "",
+                    f"+{award:,} PerkFlex (flight award{', ' + award_note if award_note else ''})" if award else "",
                     f"+{rr:,} Rapid Rewards (flying)" if rr else "",
                 )
                 if p

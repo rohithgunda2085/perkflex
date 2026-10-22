@@ -84,6 +84,7 @@ export function AdvisorPanel({ refreshKey }: { refreshKey: string }) {
       {data && (
         <div className="advisor-answer" aria-live="polite">
           <p>{data.summary}</p>
+          {data.promo && <p className="advisor-promo">{data.promo}</p>}
           {data.picks.length > 0 && (
             <ul>
               {data.picks.map((p) => {

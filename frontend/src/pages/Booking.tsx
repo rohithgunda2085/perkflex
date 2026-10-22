@@ -35,15 +35,18 @@ import type {
   FareId,
   Needs,
   Profile,
+  Promo,
   QuotesResponse,
 } from "../rules/types.ts";
 import { api } from "../services/api.ts";
 import {
   CheckLine,
   DateLabel,
+  earnWords,
   Modal,
   PerkMark,
   Pill,
+  shortDate,
   SkyIllustration,
 } from "../components/components.tsx";
 
@@ -65,8 +68,11 @@ export function BookingPage({
   onBack,
   data,
   quotesFailed,
+  promos,
 }: {
   profile: Profile;
+  /** Active and upcoming season and festival boosts. */
+  promos?: Promo[];
   needs: Needs;
   search: Search;
   onSearchChange: (s: Search) => void;
@@ -118,6 +124,18 @@ export function BookingPage({
             <SlidersHorizontal size={17} /> Edit my preferences
           </button>
         </div>
+        {data?.award?.note && (
+          <p className="season-badge" role="status">
+            <Sparkles size={15} />{" "}
+            {data.award.label}: earn {data.award.points} PerkFlex points (x{data.award.multiplier}) when you fly this flight.
+          </p>
+        )}
+        {data?.award?.nearby && (
+          <p className="season-badge subtle" role="note">
+            <Sparkles size={15} /> Flying on {shortDate(data.award.nearby.date)} instead earns {data.award.nearby.points} PerkFlex
+            points{data.award.nearby.label ? ` (${data.award.nearby.label})` : ""}.
+          </p>
+        )}
         <div className="recommendation-banner">
           <PerkMark />
           <div>
@@ -297,6 +315,12 @@ export function BookingPage({
     );
   return (
     <main className="page-enter">
+      {promos && promos[0] && (
+        <p className="promo-strip" role="note">
+          <Sparkles size={15} /> Fly {shortDate(promos[0].start)} to {shortDate(promos[0].end)} and earn{" "}
+          <strong>{earnWords(promos[0].multiplier)} PerkFlex points</strong> · {promos[0].name}
+        </p>
+      )}
       <section className="booking-hero">
         <div className="container hero-layout">
           <form
@@ -510,6 +534,8 @@ type BenefitProps = {
   title: string;
   description: string;
   selected: boolean;
+  /** set by "Fill in for me" and cleared on the next hand edit */
+  justSet?: boolean;
   onClick: () => void;
 };
 function BenefitChoice({
@@ -517,11 +543,12 @@ function BenefitChoice({
   title,
   description,
   selected,
+  justSet,
   onClick,
 }: BenefitProps) {
   return (
     <button
-      className={`benefit-choice ${selected ? "selected" : ""}`}
+      className={`benefit-choice ${selected ? "selected" : ""}${justSet ? " just-set" : ""}`}
       aria-pressed={selected}
       onClick={onClick}
     >
@@ -563,6 +590,13 @@ export function Assistant({
 }) {
   // The server runs the AI agent, prices every fare, and checks the agent's answer; this screen only shows it.
   const [text, setText] = useState("");
+  // What the last "Fill in for me" understood. `changed` highlights the settings it set until the traveller edits.
+  const [filled, setFilled] = useState<{
+    text: string;
+    summary: string;
+    changed: string[];
+    status: "loading" | "done" | "failed";
+  } | null>(null);
   const [ai, setAi] = useState<{
     status: "idle" | "loading" | "done" | "failed";
     data?: BestFareResponse;
@@ -574,6 +608,31 @@ export function Assistant({
     ? quotes.find((q) => q.fare === recommended)
     : undefined;
   const fare = best ? fareById(best.fare) : undefined;
+  // A hand edit clears the highlight, so only what the text set is ever marked.
+  function edit(n: Needs) {
+    setFilled((f) => (f && f.changed.length ? { ...f, changed: [] } : f));
+    onNeeds(n);
+  }
+  function fillIn() {
+    const message = text.trim();
+    if (!message || filled?.status === "loading") return;
+    setFilled({ text: message, summary: "", changed: [], status: "loading" });
+    api
+      .understandNeeds({ message, needs })
+      .then((r) => {
+        onNeeds(r.needs);
+        setFilled({ text: message, summary: r.summary, changed: r.changed, status: "done" });
+      })
+      .catch(() =>
+        setFilled({
+          text: message,
+          summary: "I couldn’t read that just now. Choose from the options below instead.",
+          changed: [],
+          status: "failed",
+        }),
+      );
+  }
+  const marked = (field: string) => (filled?.changed.includes(field) ? " just-set" : "");
   function findFare() {
     setAi({ status: "loading" });
     onStep(1);
@@ -582,7 +641,8 @@ export function Assistant({
     api
       .bestFare(
         {
-          message: text.trim() || undefined,
+          // Words already turned into the form are not sent again: the form is what the traveller confirmed.
+          message: text.trim() && !(filled?.status === "done" && filled.text === text.trim()) ? text.trim() : undefined,
           needs,
           flightId,
           from,
@@ -592,7 +652,7 @@ export function Assistant({
         controller.signal,
       )
       .then((result) => {
-        if (text.trim()) onNeeds(result.understood);
+        if (text.trim() && !(filled?.status === "done" && filled.text === text.trim())) onNeeds(result.understood);
         setAi({ status: "done", data: result });
       })
       .catch(() => setAi({ status: "failed" }))
@@ -627,6 +687,16 @@ export function Assistant({
               <br />A little less guesswork.
             </p>
           </div>
+          <p className="assistant-route">
+            {AIRPORTS.find((x) => x.code === from)?.city ?? from} ({from}) to{" "}
+            {AIRPORTS.find((x) => x.code === to)?.city ?? to} ({to})
+            {date ? (
+              <>
+                {" "}
+                · <DateLabel date={date} />
+              </>
+            ) : null}
+          </p>
           <div className="assistant-member">
             <span className={`avatar ${profile.color}`}>
               {profile.initials}
@@ -671,21 +741,41 @@ export function Assistant({
               <div className="assistant-title">
                 <h2>What makes a great flight for you?</h2>
                 <p>
-                  Select what you need on this trip. We’ll do the comparing.
+                  Tell me about your trip in your own words. I’ll fill in the choices below, and you can change anything.
                 </p>
               </div>
-              <label className="ai-prompt" htmlFor="ai-message">
-                <span>Or tell us in your own words (optional)</span>
+              <div className="ai-prompt-box">
+                <label htmlFor="ai-message" className="visually-hidden">
+                  Tell me about your trip
+                </label>
                 <textarea
                   id="ai-message"
-                  rows={2}
+                  rows={3}
                   maxLength={500}
-                  placeholder="e.g. Two bags, a seat near the front, refundable, under $400"
+                  placeholder="e.g. I’m flying with my family: two bags, seats near the front, refundable in case plans change, and nothing over $450."
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      fillIn();
+                    }
+                  }}
                 />
-              </label>
-              <div className="bag-picker">
+                <button
+                  className="button secondary"
+                  onClick={fillIn}
+                  disabled={!text.trim() || filled?.status === "loading"}
+                >
+                  <Sparkles size={16} /> {filled?.status === "loading" ? "Reading…" : "Fill in for me"}
+                </button>
+              </div>
+              {filled && filled.status !== "loading" && (
+                <p role="status" className={`ai-understood ${filled.status}`}>
+                  {filled.summary}
+                </p>
+              )}
+              <div className={`bag-picker${marked("bags")}`}>
                 <span className="soft-icon">
                   <Luggage size={23} />
                 </span>
@@ -699,7 +789,7 @@ export function Assistant({
                       key={n}
                       aria-pressed={needs.bags === n}
                       className={needs.bags === n ? "active" : ""}
-                      onClick={() => onNeeds({ ...needs, bags: n })}
+                      onClick={() => edit({ ...needs, bags: n })}
                     >
                       {n}
                     </button>
@@ -712,8 +802,9 @@ export function Assistant({
                   title="Extra legroom"
                   description="A little more room to stretch"
                   selected={needs.seat === "extra"}
+                  justSet={filled?.changed.includes("seat") && needs.seat === "extra"}
                   onClick={() =>
-                    onNeeds({
+                    edit({
                       ...needs,
                       seat: needs.seat === "extra" ? "any" : "extra",
                     })
@@ -724,8 +815,9 @@ export function Assistant({
                   title="Sit near the front"
                   description="Preferred seat, standard legroom"
                   selected={needs.seat === "front"}
+                  justSet={filled?.changed.includes("seat") && needs.seat === "front"}
                   onClick={() =>
-                    onNeeds({
+                    edit({
                       ...needs,
                       seat: needs.seat === "front" ? "any" : "front",
                     })
@@ -736,15 +828,17 @@ export function Assistant({
                   title="Refundable ticket"
                   description="Peace of mind if plans change"
                   selected={needs.refund}
-                  onClick={() => onNeeds({ ...needs, refund: !needs.refund })}
+                  justSet={filled?.changed.includes("refund") && needs.refund}
+                  onClick={() => edit({ ...needs, refund: !needs.refund })}
                 />
                 <BenefitChoice
                   icon={RefreshCw}
                   title="Change my flight"
                   description="Fare difference may apply"
                   selected={needs.flexible}
+                  justSet={filled?.changed.includes("flexible") && needs.flexible}
                   onClick={() =>
-                    onNeeds({ ...needs, flexible: !needs.flexible })
+                    edit({ ...needs, flexible: !needs.flexible })
                   }
                 />
                 <BenefitChoice
@@ -752,17 +846,19 @@ export function Assistant({
                   title="Choose my seat now"
                   description="Have a seat picked at booking"
                   selected={needs.seatNow}
-                  onClick={() => onNeeds({ ...needs, seatNow: !needs.seatNow })}
+                  justSet={filled?.changed.includes("seatNow") && needs.seatNow}
+                  onClick={() => edit({ ...needs, seatNow: !needs.seatNow })}
                 />
                 <BenefitChoice
                   icon={Clock3}
                   title="Board earlier"
                   description="Priority boarding for this trip"
                   selected={needs.early}
-                  onClick={() => onNeeds({ ...needs, early: !needs.early })}
+                  justSet={filled?.changed.includes("early") && needs.early}
+                  onClick={() => edit({ ...needs, early: !needs.early })}
                 />
               </div>
-              <div className="budget-picker">
+              <div className={`budget-picker${marked("budget")}`}>
                 <label htmlFor="budget">
                   <Wallet size={18} /> My total budget{" "}
                   <strong>{money(needs.budget)}</strong>
@@ -775,7 +871,7 @@ export function Assistant({
                   step="10"
                   value={needs.budget}
                   onChange={(e) =>
-                    onNeeds({ ...needs, budget: Number(e.target.value) })
+                    edit({ ...needs, budget: Number(e.target.value) })
                   }
                 />
                 <div>
@@ -883,6 +979,22 @@ export function Assistant({
                     <Sparkles size={17} />
                     <span>{data?.explanation}</span>
                   </div>
+                  {data?.award?.note && (
+                    <div className="assistant-tip">
+                      <Sparkles size={17} />
+                      <span>
+                        This flight earns {data.award.points} PerkFlex points when you fly it ({data.award.note}).
+                      </span>
+                    </div>
+                  )}
+                  {data?.award?.nearby && (
+                    <div className="assistant-tip">
+                      <Sparkles size={17} />
+                      <span>
+                        Flying on {shortDate(data.award.nearby.date)} instead would earn {data.award.nearby.points} PerkFlex points.
+                      </span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="no-match">

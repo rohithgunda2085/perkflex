@@ -18,7 +18,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { fareById, fmt, money, SEAT_NAMES } from "./rules/data.ts";
+import { AIRPORTS, fareById, fmt, money, SEAT_NAMES } from "./rules/data.ts";
 import { greetingName } from "./rules/helpers.ts";
 import { toStore } from "./rules/store.ts";
 import type { Action, FareId, ServerState } from "./rules/types.ts";
@@ -82,8 +82,12 @@ function NotFoundPage() {
     </div>
   );
 }
+const cityOf = (code: string) =>
+  AIRPORTS.find((a) => a.code === code)?.city ?? code;
+
 type OpenModal =
   | "welcome"
+  | "suggest"
   | "assistant"
   | "profile"
   | "info"
@@ -245,12 +249,18 @@ function TravellerApp({
     setPage(next);
     setMobileNav(false);
     if (next === "book") setAssistantStep(0);
-    setModal(next === "book" ? "assistant" : null);
+    // Book a flight shows the search form; the assistant is offered after Search flights.
+    setModal(null);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   function openAssistant() {
     setAssistantStep(0);
     setModal(page === "book" || !hasTrip ? "assistant" : "welcome");
+  }
+  // Search flights first recommends the assistant; "Skip" goes straight to fares.
+  function askSearch() {
+    if (search.from === search.to) searchFlights();
+    else setModal("suggest");
   }
   function searchFlights() {
     if (search.from === search.to) {
@@ -387,11 +397,12 @@ function TravellerApp({
             profile={profile}
             needs={needs}
             data={quotes.data}
+            promos={state.promos}
             quotesFailed={quotes.failed}
             search={search}
             onSearchChange={setSearch}
             results={results}
-            onSearch={searchFlights}
+            onSearch={askSearch}
             onAssistant={openAssistant}
             onBook={(id) => {
               setSelectedFare(id);
@@ -495,6 +506,7 @@ function TravellerApp({
           profile={profile}
           booking={booking}
           balance={state.balances[profile.id]}
+          wallets={state.wallets}
           onClose={() => setModal(null)}
           onReview={() => {
             setModal(null);
@@ -507,6 +519,38 @@ function TravellerApp({
             );
           }}
         />
+      )}
+      {modal === "suggest" && (
+        <Modal title="Before you search" onClose={() => setModal(null)}>
+          <div className="modal-padding suggest-modal">
+            <Pill tone="lavender">
+              <Sparkles size={14} /> Recommended
+            </Pill>
+            <p className="suggest-route">
+              {cityOf(search.from)} ({search.from}) to {cityOf(search.to)} (
+              {search.to}) · <DateLabel date={search.date} />
+            </p>
+            <p className="modal-intro">
+              PerkFlex AI can swap benefits you don’t need for points, or use
+              points for ones you do, and suggest the seat and fare that fit
+              your trip best.
+            </p>
+            <div className="suggest-actions">
+              <button
+                className="button primary"
+                onClick={() => {
+                  setAssistantStep(0);
+                  setModal("assistant");
+                }}
+              >
+                <PerkMark small /> Meet PerkFlex AI (recommended)
+              </button>
+              <button className="button secondary" onClick={searchFlights}>
+                Skip, show fares
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
       {modal === "assistant" && (
         <Assistant

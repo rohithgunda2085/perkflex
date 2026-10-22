@@ -8,6 +8,7 @@ from ..config import Settings
 from ..rules.data import SEAT_NAMES, TIER_RELEASE_BONUS_PCT, SeatClass, release_points, seat_rank
 from ..rules.pricing import DEFAULT_NEEDS, Needs, entitlements
 from .context import TravellerInfo, load_inventory, load_traveller, load_travellers
+from .seasons import award_for, promos_view
 from .extras import extra_alerts, group_view, policy_view, prices_view, release_table, status_nudge
 from .mapping import (
     FARE_FROM_DB,
@@ -369,13 +370,15 @@ def _ledger_view(conn: psycopg.Connection, passenger_id: str) -> list[dict[str, 
             }
         )
     # Completion bonuses and gifts.
-    labels = {"COMPLETION_BONUS": ("bonus", "Completion bonus"), "GIFT_IN": ("gift", "Gift received"), "GIFT_OUT": ("gift", "Gift given")}
+    labels = {"COMPLETION_BONUS": ("bonus", "Completion bonus"), "FLIGHT_AWARD": ("bonus", "Flight award"), "GIFT_IN": ("gift", "Gift received"), "GIFT_OUT": ("gift", "Gift given")}
     for r in conn.execute(
-        """SELECT point_transaction_id, transaction_type, points_delta, transaction_time_utc FROM fact_point_transaction
-            WHERE passenger_id = %s AND transaction_type IN ('COMPLETION_BONUS','GIFT_IN','GIFT_OUT')""",
+        """SELECT point_transaction_id, transaction_type, points_delta, transaction_time_utc, award_note FROM fact_point_transaction
+            WHERE passenger_id = %s AND transaction_type IN ('COMPLETION_BONUS','FLIGHT_AWARD','GIFT_IN','GIFT_OUT')""",
         (passenger_id,),
     ):
         kind, label = labels[r["transaction_type"]]
+        if r["award_note"]:
+            label = f"{label} ({r['award_note']})"
         entries.append(
             {
                 "id": r["point_transaction_id"],
@@ -506,6 +509,7 @@ def build_state(
     }
     ledger = _ledger_view(conn, passenger_id)
     policy = policy_view(conn)
+    award = award_for(conn, row["flight_date"] if row else None)
     rewards = release_table(conn, passenger_id)
     prices = prices_view(conn, row["flight_id"] if row else None)
     group = group_view(conn, passenger_id)
@@ -530,12 +534,15 @@ def build_state(
             "extra": rewards["extra"],
             "mode": policy["mode"],
             "completionBonus": policy["completionBonus"],
+            "flightAward": award["points"],
+            "awardNote": award["note"],
         },
         # Points prices on this flight after any sale; `list` holds the normal prices.
         "prices": prices,
         "group": group,
         "payRapidFirst": t.rapid_first,  # the spend order: false = PerkFlex first
         "status": status,
+        "promos": promos_view(conn),
         "booking": booking,
         "inventory": inventory,
         "ledger": ledger,  # PerkFlex rewards: releases and purchases
