@@ -979,7 +979,7 @@ export function WalletPage({
             {earnings.length > 0 && ` · ${earnings.length} for flying`}
           </span>
         </div>
-        {ledger.length > 0 ? (
+        {ledger.length > 0 || earnings.length > 0 ? (
           <div className="ledger">
             {earnings.map((x) => (
               <div className="ledger-row" key={x.id}>

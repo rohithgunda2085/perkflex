@@ -1145,7 +1145,7 @@ test("after the airline signs out, the next traveller to sign in lands on their 
   on("POST", "/auth/logout", () => ({ json: { ok: true } }));
   on("POST", "/auth/login", () => {
     airline = false;
-    return { json: { user: { role: "PASSENGER" } } };
+    return { json: { user: { role: "PASSENGER", profileId: "rohith" } } };
   });
   withNoNudge();
   const user = setup();
