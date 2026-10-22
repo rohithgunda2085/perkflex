@@ -1,0 +1,19 @@
+# Optional future AWS Amplify Hosting configuration. Nothing is deployed by this file.
+# Choose a build image with Node 24+ (or configure Node 24 in Amplify build settings).
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - node --version
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/dist
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*

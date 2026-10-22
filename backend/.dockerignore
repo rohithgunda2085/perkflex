@@ -1,0 +1,10 @@
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.DS_Store
+tests
+scripts
+requirements-dev.txt
+pytest.ini
+db/demo-credentials.local.md
+.env

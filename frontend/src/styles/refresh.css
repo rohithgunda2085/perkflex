@@ -1,0 +1,899 @@
+/* PerkFlex account and welcome experience */
+.perkflex-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.perkflex-wordmark {
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 850;
+  letter-spacing: -1.7px;
+  color: #304cb2;
+  font-style: italic;
+}
+.perkflex-wordmark > span {
+  color: #304cb2;
+  position: relative;
+}
+.perkflex-wordmark > span::after {
+  content: "";
+  height: 3px;
+  background: #ffca28;
+  position: absolute;
+  left: 2px;
+  right: -1px;
+  bottom: -5px;
+  border-radius: 2px;
+}
+.perkflex-heart {
+  display: flex;
+  transform: rotate(-5deg);
+  padding-left: 2px;
+}
+.perkflex-logo.compact .perkflex-wordmark {
+  font-size: 25px;
+  letter-spacing: -1.1px;
+}
+.perkflex-logo.compact .heart-mark {
+  width: 22px;
+  height: 22px;
+}
+.brand > .perkflex-logo {
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+.perk-mark {
+  background: linear-gradient(140deg, #4562c7, #273f9c);
+  color: #ffcf48;
+}
+.header-signout {
+  background: none;
+  border: 0;
+  padding: 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #65789a;
+}
+.header-signout:hover {
+  color: #304cb2;
+}
+.footer-actions,
+.footer-bottom > span {
+  padding-right: 0;
+}
+.footer-main {
+  padding-bottom: 25px;
+}
+.footer-brand {
+  gap: 18px;
+}
+.login-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 13% 50%, #e5edfc, transparent 60%),
+    linear-gradient(135deg, #f5f8ff, #eef3fd);
+  display: flex;
+  flex-direction: column;
+}
+.login-header {
+  border-top: 5px solid #304cb2;
+  border-bottom: 1px solid #e2e8f4;
+  background: white;
+}
+.login-header > .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 102px;
+}
+.login-header > .container > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8091b1;
+  font-size: 12px;
+}
+.login-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 110px;
+  align-items: center;
+  padding-top: 65px;
+  padding-bottom: 65px;
+  flex: 1;
+}
+.login-story > .eyebrow {
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  color: #6e83ad;
+}
+.login-story > h1 {
+  font-size: 57px;
+  letter-spacing: -2.2px;
+  line-height: 1.1;
+  margin-top: 19px;
+  color: #1b3776;
+}
+.login-story > p {
+  max-width: 430px;
+  font-size: 15px;
+  color: #7084a7;
+  line-height: 1.8;
+  margin-top: 23px;
+}
+.login-ticket {
+  background: white;
+  border: 1px solid #dce5f7;
+  border-radius: 12px;
+  margin-top: 30px;
+  max-width: 490px;
+  box-shadow: 0 15px 35px #213d7909;
+  overflow: hidden;
+  transform: rotate(-1deg);
+}
+.login-ticket-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  background: #f7f9fe;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9eef7;
+}
+.login-ticket-top > span {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #8296b9;
+}
+.login-ticket-top > span:last-child {
+  color: #568c73;
+  background: #edf7f1;
+  padding: 5px 8px;
+  border-radius: 12px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.login-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 25px;
+  gap: 25px;
+}
+.login-route > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.login-route > div:last-child {
+  text-align: right;
+}
+.login-route strong {
+  color: #38568c;
+  font-size: 40px;
+  letter-spacing: -1.2px;
+}
+.login-route span {
+  font-size: 10px;
+  color: #8a9cba;
+}
+.login-route > div:nth-child(2) {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  color: #8ba3cf;
+}
+.login-route > div:nth-child(2) > span {
+  height: 1px;
+  flex: 1;
+  background: #dce5f4;
+}
+.login-ticket-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px dashed #dce5f2;
+}
+.login-ticket-bottom > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: #8a9dbc;
+}
+.login-story-note {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #99a8c0;
+  margin-top: 25px;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.login-story-note strong {
+  font-weight: 400;
+  color: #6d82a6;
+}
+.login-card {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e0e7f4;
+  box-shadow: 0 20px 55px #23417b0c;
+  padding: 36px;
+}
+.login-lock {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #f0f4fd;
+  color: #5270b9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 23px;
+}
+.login-card h2 {
+  font-size: 29px;
+  color: #27447c;
+  letter-spacing: -0.8px;
+}
+.login-card > p {
+  font-size: 12px;
+  color: #8b9ab1;
+  margin-top: 10px;
+}
+.login-card form {
+  margin-top: 30px;
+}
+.login-card label {
+  display: block;
+  color: #52698f;
+  font-size: 11px;
+  font-weight: 700;
+  margin: 20px 0 9px;
+}
+.login-input {
+  border: 1px solid #cbd7ed;
+  border-radius: 6px;
+  height: 49px;
+  display: flex;
+  align-items: center;
+  padding: 0 13px;
+  gap: 10px;
+  color: #93a5c5;
+}
+.login-input:focus-within {
+  border-color: #6683cc;
+  box-shadow: 0 0 0 3px #ecf1fc;
+}
+.login-input input {
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  color: #526b92;
+  outline: none;
+}
+.login-input input::placeholder {
+  color: #a5b0c2;
+}
+.login-input input:focus-visible {
+  outline: none;
+}
+.login-input > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: #9aaac4;
+  padding: 3px;
+}
+.login-card .button {
+  margin-top: 27px;
+  justify-content: space-between;
+}
+.login-card .login-error {
+  background: #fff3e9;
+  border-radius: 5px;
+  font-size: 10px;
+  color: #aa7452;
+  padding: 10px;
+  margin-top: 14px;
+  line-height: 1.7;
+}
+.login-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 9px;
+  color: #a3afc4;
+  border-top: 1px solid #edf1f7;
+  margin-top: 25px;
+  padding-top: 19px;
+}
+.login-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 22px max(40px, calc((100% - 1220px) / 2));
+  border-top: 1px solid #e1e8f5;
+}
+.login-footer > span:last-child {
+  font-size: 10px;
+  color: #9aaac2;
+}
+.welcome-modal {
+  max-width: min(980px, calc(100vw - 40px));
+}
+.welcome-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+.welcome-aside {
+  padding: 35px 29px 28px;
+  background:
+    radial-gradient(ellipse at 0 80%, #5472cc45, transparent 80%),
+    linear-gradient(160deg, #314fab, #203a83);
+  color: white;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.welcome-aside::before {
+  content: "";
+  position: absolute;
+  border: 1px solid #ffffff0d;
+  height: 430px;
+  width: 430px;
+  border-radius: 50%;
+  bottom: 120px;
+  left: -100px;
+  pointer-events: none;
+}
+.welcome-aside .perkflex-wordmark,
+.welcome-aside .perkflex-wordmark > span {
+  color: white;
+  font-size: 31px;
+}
+.welcome-aside-copy {
+  margin-top: 64px;
+  position: relative;
+}
+.welcome-aside-copy > span {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #b9c8ee;
+}
+.welcome-aside-copy > h2 {
+  font-size: 37px;
+  line-height: 1.17;
+  letter-spacing: -1px;
+  color: #fff;
+  margin-top: 17px;
+}
+.welcome-aside-copy > p {
+  color: #a8bce6;
+  font-size: 12px;
+  line-height: 1.9;
+  margin-top: 20px;
+}
+.welcome-trip {
+  border: 1px solid #ffffff1c;
+  background: #ffffff08;
+  border-radius: 9px;
+  padding: 17px;
+  margin-top: 45px;
+  position: relative;
+}
+.welcome-trip > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #c3d0ee;
+}
+.welcome-trip > div > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.welcome-trip .pill {
+  font-size: 7px;
+  padding: 5px 7px;
+  margin-left: auto;
+  background: #ffffff13;
+  color: #d3ddf5;
+}
+.welcome-trip > strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 16px;
+  font-weight: 400;
+  color: #d9e3fc;
+}
+.welcome-trip > small {
+  display: block;
+  font-size: 9px;
+  margin-top: 7px;
+  letter-spacing: 0.4px;
+  color: #a2b9e2;
+}
+.welcome-aside-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  margin-top: auto;
+  padding-top: 30px;
+}
+.welcome-aside-footer > span:last-child {
+  font-size: 12px;
+  color: #d8e0f7;
+}
+.welcome-aside-footer small {
+  display: block;
+  color: #9cb2df;
+  font-size: 9px;
+  margin-top: 6px;
+}
+.welcome-main {
+  padding: 45px 39px 28px;
+}
+.welcome-main > .pill {
+  font-size: 8px;
+  letter-spacing: 0.6px;
+  background: #edf2fc;
+  color: #5f7aba;
+}
+.welcome-main > h1 {
+  font-size: 34px;
+  line-height: 1.2;
+  margin-top: 24px;
+  letter-spacing: -1.1px;
+  color: #29457f;
+}
+.welcome-main > h1 > span {
+  color: #5876bd;
+}
+.welcome-main > h2 {
+  font-size: 16px;
+  margin-top: 23px;
+  color: #59719b;
+  letter-spacing: -0.2px;
+}
+.welcome-main > p {
+  font-size: 12px;
+  color: #8797b0;
+  line-height: 1.85;
+  margin-top: 11px;
+}
+.welcome-perks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 24px;
+}
+.welcome-perks > div {
+  border: 1px solid #e2e9f4;
+  background: #fafcff;
+  border-radius: 8px;
+  padding: 16px 11px;
+}
+.welcome-perks svg {
+  color: #7890bf;
+}
+.welcome-perks strong {
+  display: block;
+  font-size: 11px;
+  color: #637fa9;
+  margin-top: 13px;
+}
+.welcome-perks span {
+  display: block;
+  font-size: 8px;
+  line-height: 1.7;
+  color: #9aabc3;
+  margin-top: 7px;
+}
+.welcome-insight {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  background: #fff9e9;
+  border: 1px solid #f3e8c9;
+  border-radius: 7px;
+  padding: 12px;
+  margin: 18px 0 24px;
+  font-size: 10px;
+  line-height: 1.7;
+  color: #a38e59;
+}
+.welcome-insight > svg {
+  color: #c4a653;
+  margin-top: 2px;
+}
+.welcome-skip {
+  display: block;
+  border: 0;
+  background: none;
+  text-align: center;
+  margin: 16px auto 0;
+  color: #92a2bc;
+  font-size: 10px;
+  padding: 4px;
+}
+.welcome-skip:hover {
+  text-decoration: underline;
+  color: #304cb2;
+}
+.checkin-progress {
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e8edf6;
+  margin-bottom: 30px;
+}
+.checkin-progress > span {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 9px;
+  color: #afbacb;
+}
+.checkin-progress > span > span,
+.checkin-progress > span > svg {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f2f4f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  padding: 4px;
+}
+.checkin-progress > span > strong {
+  font-weight: 400;
+}
+.checkin-progress > .complete {
+  color: #7b9b88;
+}
+.checkin-progress > .complete > svg {
+  background: #eef7f1;
+  color: #77a58c;
+}
+.checkin-progress > .current {
+  color: #5574b7;
+}
+.checkin-progress > .current > span,
+.checkin-progress > .current > svg {
+  background: #edf2fd;
+  color: #5574b7;
+}
+.checkin-progress > .current > strong {
+  font-weight: 700;
+}
+.perk-review {
+  scroll-margin-top: 20px;
+}
+@media (max-width: 1100px) {
+  .login-layout {
+    gap: 50px;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    padding-top: 50px;
+    padding-bottom: 50px;
+  }
+  .login-story > h1 {
+    font-size: 47px;
+  }
+  .login-story > p {
+    font-size: 13px;
+  }
+  .login-ticket-bottom {
+    padding: 15px;
+    gap: 5px;
+  }
+  .login-ticket-bottom > span {
+    font-size: 8px;
+  }
+  .login-ticket-bottom svg {
+    width: 13px;
+  }
+  .welcome-layout {
+    grid-template-columns: 270px 1fr;
+  }
+  .welcome-aside {
+    padding: 32px 23px 25px;
+  }
+  .welcome-main {
+    padding: 40px 30px 26px;
+  }
+}
+@media (max-width: 850px) {
+  .login-layout {
+    gap: 30px;
+    grid-template-columns: minmax(0, 1fr) 350px;
+  }
+  .login-story > h1 {
+    font-size: 38px;
+  }
+  .login-card {
+    padding: 28px;
+  }
+  .login-ticket-bottom > span:last-child {
+    display: none;
+  }
+  .login-route {
+    padding: 20px;
+    gap: 15px;
+  }
+  .login-route strong {
+    font-size: 33px;
+  }
+  .login-route span {
+    font-size: 8px;
+  }
+  .welcome-layout {
+    grid-template-columns: 225px 1fr;
+  }
+  .welcome-aside-copy > h2 {
+    font-size: 31px;
+  }
+  .welcome-trip {
+    padding: 14px 11px;
+  }
+  .welcome-trip > div {
+    gap: 5px;
+  }
+  .welcome-trip > div > span {
+    gap: 4px;
+    font-size: 12px;
+  }
+  .welcome-trip .pill {
+    font-size: 6px;
+    padding: 4px 6px;
+  }
+  .welcome-main {
+    padding: 38px 25px 24px;
+  }
+  .welcome-main > h1 {
+    font-size: 28px;
+  }
+  .welcome-main > h2 {
+    font-size: 14px;
+  }
+  .welcome-main > p {
+    font-size: 11px;
+  }
+  .welcome-perks {
+    gap: 7px;
+  }
+  .welcome-perks > div {
+    padding: 13px 9px;
+  }
+  .welcome-perks strong {
+    font-size: 10px;
+  }
+  .welcome-perks span {
+    font-size: 7px;
+  }
+}
+@media (max-width: 700px) {
+  .perkflex-wordmark {
+    font-size: 29px;
+  }
+  .perkflex-logo .heart-mark {
+    width: 24px;
+    height: 24px;
+  }
+  .header-right {
+    gap: 12px;
+  }
+  .header-signout {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .header-signout > svg {
+    width: 13px;
+  }
+  .login-header > .container {
+    min-height: 80px;
+  }
+  .login-header > .container > span:last-child {
+    font-size: 8px;
+    gap: 5px;
+  }
+  .login-header > .container > span:last-child > svg {
+    width: 12px;
+  }
+  .login-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding-top: 28px;
+    padding-bottom: 30px;
+    gap: 26px;
+  }
+  .login-story > .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.1px;
+  }
+  .login-story > h1 {
+    font-size: 36px;
+    margin-top: 12px;
+    letter-spacing: -1.2px;
+  }
+  .login-story > p {
+    font-size: 12px;
+    margin-top: 13px;
+    line-height: 1.8;
+  }
+  .login-ticket {
+    display: none;
+  }
+  .login-story-note {
+    display: none;
+  }
+  .login-card {
+    padding: 27px;
+    max-width: 480px;
+    width: 100%;
+    align-self: center;
+  }
+  .login-card h2 {
+    font-size: 27px;
+  }
+  .login-card > p {
+    font-size: 11px;
+  }
+  .login-lock {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    margin-bottom: 18px;
+  }
+  .login-lock > svg {
+    width: 21px;
+  }
+  .login-card form {
+    margin-top: 22px;
+  }
+  .login-card label {
+    margin-top: 18px;
+    font-size: 10px;
+  }
+  .login-card .button {
+    font-size: 13px;
+  }
+  .login-card-foot {
+    font-size: 8px;
+  }
+  .login-footer {
+    padding: 20px 16px;
+  }
+  .login-footer > span:last-child {
+    font-size: 8px;
+    max-width: 135px;
+    text-align: right;
+    line-height: 1.7;
+  }
+  .welcome-modal {
+    max-width: calc(100vw - 20px);
+  }
+  .welcome-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .welcome-aside {
+    padding: 21px 24px;
+  }
+  .welcome-aside .perkflex-wordmark,
+  .welcome-aside .perkflex-wordmark > span {
+    font-size: 28px;
+  }
+  .welcome-aside-copy,
+  .welcome-trip,
+  .welcome-aside-footer {
+    display: none;
+  }
+  .welcome-main {
+    padding: 26px 23px 23px;
+  }
+  .welcome-main > .pill {
+    font-size: 7px;
+    letter-spacing: 0.3px;
+  }
+  .welcome-main > h1 {
+    font-size: 29px;
+    margin-top: 20px;
+  }
+  .welcome-main > h2 {
+    font-size: 14px;
+    margin-top: 18px;
+  }
+  .welcome-main > p {
+    font-size: 11px;
+    margin-top: 10px;
+    line-height: 1.8;
+  }
+  .welcome-perks {
+    margin-top: 21px;
+    gap: 7px;
+  }
+  .welcome-perks > div {
+    padding: 13px 9px;
+  }
+  .welcome-perks strong {
+    font-size: 9px;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .welcome-perks svg {
+    width: 20px;
+  }
+  .welcome-perks span {
+    font-size: 7px;
+    line-height: 1.7;
+  }
+  .welcome-main > .button {
+    font-size: 12px;
+  }
+  .welcome-insight {
+    font-size: 9px;
+    line-height: 1.8;
+    margin-top: 16px;
+    margin-bottom: 20px;
+    padding: 11px;
+    gap: 7px;
+  }
+  .welcome-insight > svg {
+    width: 16px;
+  }
+  .welcome-modal .modal-close {
+    background: #ffffff12;
+    color: #d5e0ff;
+  }
+  .checkin-progress {
+    gap: 12px;
+    padding-bottom: 17px;
+    margin-bottom: 24px;
+    justify-content: space-between;
+  }
+  .checkin-progress > span {
+    font-size: 7px;
+    gap: 5px;
+  }
+  .checkin-progress > span > span,
+  .checkin-progress > span > svg {
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+    padding: 3px;
+    flex-shrink: 0;
+  }
+  .footer-brand {
+    gap: 13px;
+  }
+  .footer-main {
+    padding-bottom: 22px;
+  }
+}

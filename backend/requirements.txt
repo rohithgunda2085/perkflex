@@ -1,0 +1,9 @@
+# Runtime dependencies for the PerkFlex API (Python 3.12)
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.4
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+boto3==1.43.116

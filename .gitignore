@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
+backend/db/*.local.md
+__pycache__/
+*.pyc
+.pytest_cache/
