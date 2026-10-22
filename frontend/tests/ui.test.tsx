@@ -1866,10 +1866,11 @@ test("the group scene invites, switches to the companion to accept, and switches
 
 // ---- the airline's settings
 const controls = (over: Json = {}) => ({
-  policy: { mode: "FLAT", valuePercent: 18, centsPerPoint: 1, completionBonus: 50 },
+  policy: { mode: "FLAT", valuePercent: 18, centsPerPoint: 1, completionBonus: 50, flightAward: 25 },
   flights: [{ id: "F01", label: "WN2418 DAL → DEN, 2027-12-16" }],
   benefits: [{ key: "bag", name: "Checked bag" }, { key: "preferred", name: "Preferred seat" }],
   sales: [],
+  seasonRules: [],
   audit: [],
   ...over,
 });
