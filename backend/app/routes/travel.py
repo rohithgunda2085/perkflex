@@ -12,7 +12,7 @@ from ..security.session import Session
 from ..services.actions import Action, perform
 from ..services.context import load_inventory, load_traveller, resolve_flight
 from ..services.mapping import flight_number
-from ..services.state import build_state
+from ..services.state import build_state, expire_due
 
 router = APIRouter(prefix="/api")
 
@@ -36,6 +36,7 @@ def _traveller_or_404(conn, session: Session):
 @router.get("/state")
 def get_state(session: Session = Depends(traveller_session), settings: Settings = Depends(settings_dep)):
     with request_connection() as conn:
+        expire_due(conn, session.passenger_id, settings)  # type: ignore[arg-type]
         return build_state(conn, session.passenger_id, settings)  # type: ignore[arg-type]
 
 
@@ -77,5 +78,6 @@ def post_action(action: Action, session: Session = Depends(traveller_session), s
     """
     with request_connection() as conn:
         t = _traveller_or_404(conn, session)
+        expire_due(conn, t.passenger_id, settings)
         outcome = perform(conn, t, action, settings)
         return build_state(conn, t.passenger_id, settings, outcome.notice, outcome.error)

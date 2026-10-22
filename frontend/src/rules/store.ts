@@ -17,6 +17,18 @@ export function toStore(s: ServerState): Store {
         }
       : {},
     ledger: s.ledger.map((l) => ({ ...l, profileId: id })),
+    // Without wallet data, everything counts as Rapid Rewards (the older server answer).
+    wallets: s.wallets ?? {
+      perkflex: { available: 0, pending: s.pending },
+      rapidRewards: { available: s.balance, pending: 0 },
+    },
+    earnings: s.earnings ?? [],
+    payRapidFirst: s.payRapidFirst ?? false,
+    rewards: s.rewards,
+    status: s.status,
+    notifications: s.notifications ?? [],
+    prices: s.prices,
+    group: s.group,
     notice: s.notice,
     error: s.error,
   };

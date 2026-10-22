@@ -40,6 +40,22 @@ class Settings(BaseSettings):
     # Bedrock
     aws_region: str = "us-east-1"
     bedrock_model_id: str = ""
+    # Bedrock Guardrails (optional). With an id set, the traveller's free text is screened before any model call and
+    # every Converse call runs under the guardrail. Leave empty to run without one.
+    bedrock_guardrail_id: str = ""
+    bedrock_guardrail_version: str = "DRAFT"
+    # Where the advisor's model loop runs: "local" (inside this API) or "agentcore" (an Amazon Bedrock AgentCore
+    # Runtime that receives the context as its payload). The API validates the answer either way.
+    advisor_runtime: str = "local"
+    agentcore_runtime_arn: str = ""
+    agentcore_qualifier: str = ""
+
+    # Email notifications through Amazon SES. Off unless EMAIL_ENABLED is true and EMAIL_FROM is a verified SES identity.
+    email_enabled: bool = False
+    email_from: str = ""
+    email_configuration_set: str = ""
+    # The public address of the site (for example the CloudFront URL), used for the confirmation link in the email.
+    public_base_url: str = ""
 
     # API server
     api_host: str = "127.0.0.1"

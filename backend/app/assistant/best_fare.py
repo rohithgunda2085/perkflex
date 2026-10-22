@@ -10,7 +10,7 @@ import re
 import time
 from typing import Any
 
-from ..rules.data import FARES, RELEASE_POINTS, REDEEM_POINTS, SEAT_NAMES, TAX_CENTS
+from ..rules.data import FARES, RELEASE_POINTS, REDEEM_POINTS, SEAT_NAMES, TAX_CENTS, release_points
 from ..rules.pricing import Needs, Quote, entitlements, quote_fares, recommended_quote, sanitize_needs
 from ..services.context import TravellerInfo
 from .agent import Agent, AgentInput, run_agent
@@ -54,7 +54,8 @@ def assert_amounts_verified(text: str, quotes: list[Quote], needs: Needs, travel
             value = float(m.group(1).replace(",", ""))
             if not any(abs(a - value) < 0.006 for a in usd):
                 raise SubmissionRejected(f"unverified amount {m.group(0)}")
-    points = {traveller.balance, *RELEASE_POINTS.values(), *REDEEM_POINTS.values(), *(q.points for q in quotes)}
+    released = {release_points(v, traveller.tier) for v in RELEASE_POINTS.values()}  # with the status bonus
+    points = {traveller.balance, *RELEASE_POINTS.values(), *released, *REDEEM_POINTS.values(), *(q.points for q in quotes)}
     for m in _POINTS_FORM.finditer(text):
         if int(m.group(1).replace(",", "")) not in points:
             raise SubmissionRejected(f"unverified points {m.group(0)}")

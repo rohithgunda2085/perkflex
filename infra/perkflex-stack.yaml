@@ -102,10 +102,32 @@ Metadata:
         Parameters: [DbHost, DbPort, DbName, DbUser, DbPassword, DbSsl]
       - Label: { default: Application }
         Parameters: [ImageTag, DesiredCount, BedrockModelId, DemoMode, DemoNow]
+      - Label: { default: Advisor safety and hosting (optional) }
+        Parameters: [EnableGuardrail, AdvisorRuntime, AgentCoreRuntimeArn]
+      - Label: { default: Email notifications (optional) }
+        Parameters: [EmailFromAddress]
       - Label: { default: Custom domain (optional) }
         Parameters: [DomainName, HostedZoneId]
 
 Parameters:
+  EnableGuardrail:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Create an Amazon Bedrock Guardrail and apply it to the advisor and the assistant, as a second layer beside the
+      application's own validator (which stays the real safety net).
+  AdvisorRuntime:
+    Type: String
+    Default: local
+    AllowedValues: [local, agentcore]
+    Description: >-
+      local runs the advisor's model loop inside the API. agentcore sends it to an Amazon Bedrock AgentCore Runtime
+      (see docs/AGENTCORE.md). The API validates the answer either way.
+  AgentCoreRuntimeArn:
+    Type: String
+    Default: ""
+    Description: ARN of the AgentCore runtime. Required when AdvisorRuntime is agentcore.
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The VPC that contains your RDS instance.
@@ -178,6 +200,13 @@ Parameters:
       Demo only. The seed flights are in 2026 and 2027, so check-in windows are judged against this fixed time. Every
       deployment runs on this date until you set the value to empty, which uses the real clock. Empty it for anything
       beyond a short demo.
+  EmailFromAddress:
+    Type: String
+    Default: ""
+    Description: >-
+      Optional. An address to send traveller emails from, through Amazon SES (for example no-reply@example.com). Leave
+      empty for no email. SES sends a verification email to this address: open its link once. A new SES account is in the
+      sandbox, so it can only send to verified addresses until you ask AWS for production access (see docs/EMAIL.md).
   DomainName:
     Type: String
     Default: ""
@@ -198,6 +227,11 @@ Rules:
             - !Not [!Equals [!Ref DomainName, ""]]
             - !Not [!Equals [!Ref HostedZoneId, ""]]
         AssertDescription: Set both DomainName and HostedZoneId, or leave both empty.
+  AgentCoreNeedsArn:
+    RuleCondition: !Equals [!Ref AdvisorRuntime, agentcore]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AgentCoreRuntimeArn, ""]]
+        AssertDescription: Set AgentCoreRuntimeArn when AdvisorRuntime is agentcore.
   DomainNeedsUsEast1:
     RuleCondition: !Not [!Equals [!Ref DomainName, ""]]
     Assertions:
@@ -205,6 +239,11 @@ Rules:
         AssertDescription: A custom domain needs this stack in us-east-1 (CloudFront certificates must live there).
 
 Conditions:
+  UseGuardrail: !Equals [!Ref EnableGuardrail, "true"]
+  UseAgentCore: !And
+    - !Equals [!Ref AdvisorRuntime, agentcore]
+    - !Not [!Equals [!Ref AgentCoreRuntimeArn, ""]]
+  UseEmail: !Not [!Equals [!Ref EmailFromAddress, ""]]
   HasDomain: !And
     - !Not [!Equals [!Ref DomainName, ""]]
     - !Not [!Equals [!Ref HostedZoneId, ""]]
@@ -310,7 +349,51 @@ Resources:
                   - !Ref DbPasswordSecret
                   - !Ref SessionSecret
 
-  # What the running API may do: call the one Bedrock model, nothing else.
+  # ------------------------------------------------------------------------------------------ Bedrock Guardrail
+  # A second layer on the model's input and output. It blocks prompt-injection attempts and removes personal data
+  # from what the traveller types. It does not decide anything about points: the validator in the API does that.
+  Guardrail:
+    Type: AWS::Bedrock::Guardrail
+    Condition: UseGuardrail
+    Properties:
+      Name: !Sub "${AWS::StackName}-advisor"
+      Description: Prompt-attack, content and personal-data filters for the PerkFlex advisor and assistant.
+      BlockedInputMessaging: I can only help with your trip's bags, seats and perks.
+      BlockedOutputsMessaging: I can only help with your trip's bags, seats and perks.
+      ContentPolicyConfig:
+        FiltersConfig:
+          - { Type: PROMPT_ATTACK, InputStrength: HIGH, OutputStrength: NONE }
+          - { Type: HATE, InputStrength: HIGH, OutputStrength: HIGH }
+          - { Type: INSULTS, InputStrength: MEDIUM, OutputStrength: MEDIUM }
+          - { Type: SEXUAL, InputStrength: HIGH, OutputStrength: HIGH }
+          - { Type: VIOLENCE, InputStrength: MEDIUM, OutputStrength: MEDIUM }
+          - { Type: MISCONDUCT, InputStrength: MEDIUM, OutputStrength: MEDIUM }
+      TopicPolicyConfig:
+        TopicsConfig:
+          - Name: Financial and legal advice
+            Type: DENY
+            Definition: Recommendations about investments, taxes, loans or legal action.
+            Examples:
+              - Should I invest my points in crypto?
+              - Can I sue the airline?
+      SensitiveInformationPolicyConfig:
+        PiiEntitiesConfig:
+          - { Type: EMAIL, Action: ANONYMIZE }
+          - { Type: PHONE, Action: ANONYMIZE }
+          - { Type: ADDRESS, Action: ANONYMIZE }
+          - { Type: CREDIT_DEBIT_CARD_NUMBER, Action: BLOCK }
+          - { Type: US_SOCIAL_SECURITY_NUMBER, Action: BLOCK }
+          - { Type: PASSWORD, Action: BLOCK }
+
+  # A numbered version, so a console edit of the working draft cannot change what production enforces.
+  GuardrailVersion:
+    Type: AWS::Bedrock::GuardrailVersion
+    Condition: UseGuardrail
+    Properties:
+      GuardrailIdentifier: !GetAtt Guardrail.GuardrailId
+      Description: Deployed with the stack
+
+  # What the running API may do: call the one Bedrock model, apply the guardrail, and (optionally) call the advisor runtime.
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -337,6 +420,45 @@ Resources:
                       - !Select [1, !Split [".", !Ref BedrockModelId]]
                       - "."
                       - !Select [2, !Split [".", !Ref BedrockModelId]]
+        - !If
+          - UseGuardrail
+          - PolicyName: apply-guardrail
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: bedrock:ApplyGuardrail
+                  Resource: !GetAtt Guardrail.GuardrailArn
+          - !Ref AWS::NoValue
+        - !If
+          - UseAgentCore
+          - PolicyName: invoke-advisor-runtime
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: bedrock-agentcore:InvokeAgentRuntime
+                  Resource:
+                    - !Ref AgentCoreRuntimeArn
+                    - !Sub "${AgentCoreRuntimeArn}/*"
+          - !Ref AWS::NoValue
+        - !If
+          - UseEmail
+          - PolicyName: send-email
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ses:SendEmail
+                  Resource: !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${EmailFromAddress}
+          - !Ref AWS::NoValue
+
+  # ---------------------------------------------------------------------------------------------- Email (SES)
+  EmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Condition: UseEmail
+    Properties:
+      EmailIdentity: !Ref EmailFromAddress
 
   # ---------------------------------------------------------------------------------------------- ECS service
   Cluster:
@@ -377,6 +499,13 @@ Resources:
             - { Name: DB_SSL, Value: !Ref DbSsl }
             - { Name: AWS_REGION, Value: !Ref "AWS::Region" }
             - { Name: BEDROCK_MODEL_ID, Value: !Ref BedrockModelId }
+            - { Name: BEDROCK_GUARDRAIL_ID, Value: !If [UseGuardrail, !GetAtt Guardrail.GuardrailId, ""] }
+            - { Name: BEDROCK_GUARDRAIL_VERSION, Value: !If [UseGuardrail, !GetAtt GuardrailVersion.Version, DRAFT] }
+            - { Name: ADVISOR_RUNTIME, Value: !If [UseAgentCore, agentcore, local] }
+            - { Name: AGENTCORE_RUNTIME_ARN, Value: !If [UseAgentCore, !Ref AgentCoreRuntimeArn, ""] }
+            - { Name: EMAIL_ENABLED, Value: !If [UseEmail, "true", "false"] }
+            - { Name: EMAIL_FROM, Value: !Ref EmailFromAddress }
+            - { Name: PUBLIC_BASE_URL, Value: !If [HasDomain, !Sub "https://${DomainName}", !Sub "https://${Distribution.DomainName}"] }
           Secrets:
             - { Name: DB_PASSWORD, ValueFrom: !Ref DbPasswordSecret }
             - { Name: SESSION_SECRET, ValueFrom: !Ref SessionSecret }
@@ -592,7 +721,7 @@ Resources:
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
             CachedMethods: [GET, HEAD]
             # Managed policies: CachingDisabled, and AllViewerExceptHostHeader (forwards cookies and headers)
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            CachePolicyId: 4135ea2d-6df8-48a1-aaa5-8fcf09d0c6a1
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
 
   # ---------------------------------------------------------------------- optional custom domain (HasDomain only)
@@ -668,3 +797,10 @@ Outputs:
     Value: !GetAtt LoadBalancer.DNSName
   LogGroupName:
     Value: !Ref LogGroup
+  GuardrailId:
+    Condition: UseGuardrail
+    Description: The Bedrock Guardrail applied to the advisor and the assistant
+    Value: !GetAtt Guardrail.GuardrailId
+  GuardrailVersionNumber:
+    Condition: UseGuardrail
+    Value: !GetAtt GuardrailVersion.Version

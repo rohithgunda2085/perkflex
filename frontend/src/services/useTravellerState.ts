@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Action, ServerState } from "../rules/types.ts";
 import { ApiError, api } from "./api.ts";
 
-export type Status = "loading" | "signed-out" | "ready" | "error";
+export type Status = "loading" | "signed-out" | "ready" | "error" | "admin";
 
 /**
  * The traveller's state, held on the server. Every change is a request; the answer is the new state, so the
@@ -14,6 +14,8 @@ export function useTravellerState() {
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(0);
+  // Bumped by a demo reset so the screen starts over from the restored state.
+  const [epoch, setEpoch] = useState(0);
 
   const load = useCallback(async (): Promise<ServerState | null> => {
     try {
@@ -22,10 +24,12 @@ export function useTravellerState() {
       setStatus("ready");
       return next;
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        (error.status === 401 || error.status === 403)
-      ) {
+      if (error instanceof ApiError && error.status === 403) {
+        // Signed in, but not as a traveller: the airline account has its own view.
+        setState(null);
+        const me = await api.me().catch(() => null);
+        setStatus(me?.user.role === "AIRLINE_ADMIN" ? "admin" : "signed-out");
+      } else if (error instanceof ApiError && error.status === 401) {
         setState(null);
         setStatus("signed-out");
       } else {
@@ -55,6 +59,22 @@ export function useTravellerState() {
       inFlight.current += 1;
       setBusy(true);
       try {
+        if (action.type === "demo-reset") {
+          const next = await api.resetDemo();
+          setState(next);
+          setEpoch((e) => e + 1);
+          return next;
+        }
+        if (action.type === "demo-simulate") {
+          const next = await api.simulateOthers();
+          setState(next);
+          return next;
+        }
+        if (action.type === "demo-sale") {
+          const next = await api.demoSale(action.benefit);
+          setState(next);
+          return next;
+        }
         if (action.type === "profile") {
           await api.switchTraveller(action.id);
           return await load();
@@ -88,5 +108,5 @@ export function useTravellerState() {
     setStatus("signed-out");
   }, []);
 
-  return { state, status, problem, busy, dispatch, reload: load, signedOut };
+  return { state, status, problem, busy, epoch, dispatch, reload: load, signedOut };
 }

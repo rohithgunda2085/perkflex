@@ -12,12 +12,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import Settings
 from ..db import atomic
+from ..email.outbox import EMAIL_KIND_BY_ACTION, queue_for_traveller
 from ..rules.data import SEAT_NAMES, FareId, SeatClass, seat_rank
 from ..rules.pricing import CamelModel, Needs, entitlements
 from .booking import ActionRefused, create_booking
 from .context import TravellerInfo, clock_now
 from .mapping import SEAT_FROM_DB, SEAT_TO_DB
 from .state import current_booking_row
+
+
+# Small perks: the app's word -> the dim_benefit id
+PERK_BENEFIT = {
+    "boarding": "PERK_BOARDING",
+    "drink": "PERK_DRINK",
+    "lane": "PERK_LANE",
+    "standby": "PERK_STANDBY",
+    "overweight": "PERK_OVERWEIGHT",
+    "meal": "PERK_MEAL",
+}
 
 
 @dataclass(frozen=True)
@@ -44,12 +56,43 @@ class SetBags(_Base):
 
 class Release(_Base):
     type: Literal["release"]
-    benefit: Literal["bag", "seat"]
+    benefit: Literal["bag", "seat", "boarding", "drink", "lane", "standby"]
 
 
 class Redeem(_Base):
     type: Literal["redeem"]
-    benefit: Literal["bag", "standard", "preferred", "extra"]
+    benefit: Literal["bag", "standard", "preferred", "extra", "boarding", "drink", "standby", "overweight", "meal"]
+
+
+class Undo(_Base):
+    type: Literal["undo"]
+    benefit: Literal["bag", "seat", "boarding", "drink", "lane", "standby"]
+
+
+class PayOrder(_Base):
+    type: Literal["payment-order"]
+    rapid_first: bool = Field(alias="rapidFirst")
+
+
+class GroupInvite(_Base):
+    type: Literal["group-invite"]
+    companion: str = Field(min_length=3, max_length=40, pattern=r"^[A-Za-z0-9._@-]+$")  # login id or Rapid Rewards number
+
+
+class GroupRespond(_Base):
+    type: Literal["group-respond"]
+    group: str = Field(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9._@-]+$")  # the organiser's login id
+    accept: bool
+
+
+class GroupLeave(_Base):
+    type: Literal["group-leave"]
+
+
+class Gift(_Base):
+    type: Literal["gift"]
+    to: str = Field(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9._@-]+$")  # a group member's login id
+    points: int = Field(ge=1, le=100000)  # the database enforces the real limits (100 to 2,000 per gift)
 
 
 class CheckIn(_Base):
@@ -71,9 +114,27 @@ class Book(_Base):
 
 
 Action = Annotated[
-    OpenCheckin | SetBags | Release | Redeem | CheckIn | Complete | Book,
+    OpenCheckin | SetBags | Release | Redeem | Undo | PayOrder | GroupInvite | GroupRespond | GroupLeave | Gift
+    | CheckIn | Complete | Book,
     Field(discriminator="type"),
 ]
+
+
+def _paid(pf: int, rr: int) -> str:
+    """'600 PerkFlex', '300 PerkFlex + 300 Rapid Rewards'... : which wallet(s) a purchase was taken from."""
+    parts = [f"{pf:,} PerkFlex" if pf else "", f"{rr:,} Rapid Rewards" if rr else ""]
+    return " + ".join(p for p in parts if p) or "0"
+
+
+def _seat_split(conn: psycopg.Connection, transaction_id: str) -> tuple[int, int]:
+    """What a seat purchase took from each wallet (the SQL function reports only the total)."""
+    row = conn.execute(
+        """SELECT COALESCE(-sum(points_delta) FILTER (WHERE point_type = 'PERKFLEX'), 0) AS pf,
+                  COALESCE(-sum(points_delta) FILTER (WHERE point_type = 'RAPID_REWARDS'), 0) AS rr
+             FROM fact_point_transaction WHERE perkflex_transaction_id = %s AND transaction_type = 'BENEFIT_DEBIT'""",
+        (transaction_id,),
+    ).fetchone()
+    return int(row["pf"]), int(row["rr"])
 
 
 def _call(conn: psycopg.Connection, function: str, *args) -> dict:
@@ -119,7 +180,34 @@ def _fare(b: dict) -> FareId:
     return FARE_FROM_DB[b["fare_id"]]  # type: ignore[return-value]
 
 
-def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings: Settings) -> Outcome:
+def _passenger_for(conn: psycopg.Connection, who: str) -> str | None:
+    """A traveller's passenger id from their login id or their Rapid Rewards number."""
+    row = conn.execute(
+        """SELECT p.passenger_id FROM dim_passenger p LEFT JOIN dim_user_account u USING (passenger_id)
+            WHERE lower(u.login_id) = lower(%(w)s) OR upper(p.rapid_rewards_account_id) = upper(%(w)s) LIMIT 1""",
+        {"w": who},
+    ).fetchone()
+    return row["passenger_id"] if row else None
+
+
+def _social(conn: psycopg.Connection, t: TravellerInfo, action: Action, idem: str, now: datetime) -> Outcome:
+    """Travel groups and gifts."""
+    if isinstance(action, GroupLeave):
+        return Outcome(_call(conn, "pf_group_leave", t.passenger_id)["message"])
+    other = _passenger_for(
+        conn, action.companion if isinstance(action, GroupInvite) else action.group if isinstance(action, GroupRespond) else action.to  # type: ignore[union-attr]
+    )
+    if other is None:
+        raise ActionRefused("We could not find that traveller.")
+    if isinstance(action, GroupInvite):
+        return Outcome(_call(conn, "pf_group_invite", t.passenger_id, other)["message"])
+    if isinstance(action, GroupRespond):
+        return Outcome(_call(conn, "pf_group_respond", t.passenger_id, other, action.accept)["message"])
+    result = _call(conn, "pf_gift_points", t.passenger_id, other, action.points, idem, now)  # type: ignore[union-attr]
+    return Outcome(result["message"])
+
+
+def _apply(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings: Settings) -> Outcome:
     """Applies one action for the signed-in traveller. Never commits. Refusals come back as Outcome(error=True)."""
     now = clock_now(settings)
     idem = f"{t.passenger_id}:{action.idempotency_key or uuid.uuid4().hex}"
@@ -138,6 +226,9 @@ def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings
             )
             return Outcome(notice)
 
+        if isinstance(action, (GroupInvite, GroupRespond, GroupLeave, Gift)):
+            return _social(conn, t, action, idem, now)  # these need no trip
+
         b = current_booking_row(conn, t.passenger_id)
         if isinstance(action, OpenCheckin):
             # Navigating to Check in calls this every time; with nothing to open it is quietly a no-op.
@@ -155,9 +246,50 @@ def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings
             raise ActionRefused("Book a flight first. You don’t have a trip yet.")
         booking = b["booking_id"]
 
+        if isinstance(action, PayOrder):
+            _call(conn, "pf_set_pay_order", t.passenger_id, action.rapid_first)
+            return Outcome(
+                "Rapid Rewards points will be used first, then PerkFlex."
+                if action.rapid_first
+                else "PerkFlex points will be used first, then Rapid Rewards."
+            )
+
+        if isinstance(action, Undo):
+            benefit_id = {"bag": None, "seat": None, **PERK_BENEFIT}[action.benefit]
+            row = conn.execute(
+                """SELECT t.transaction_id FROM fact_perkflex_transaction t JOIN dim_benefit d USING (benefit_id)
+                    WHERE t.booking_id = %s AND t.action_type = 'RELEASE' AND t.transaction_status = 'ACCEPTED'
+                      AND (CASE WHEN %s::text IS NOT NULL THEN t.benefit_id = %s
+                                WHEN %s = 'bag' THEN d.benefit_type = 'BAG' ELSE d.benefit_type = 'SEAT' END)
+                    ORDER BY t.recorded_at DESC LIMIT 1""",
+                (booking, benefit_id, benefit_id, action.benefit),
+            ).fetchone()
+            if row is None:
+                raise ActionRefused("There is no release to undo.")
+            result = _call(conn, "pf_undo_release", t.passenger_id, booking, row["transaction_id"], now)
+            _failed(result)
+            if result.get("replayed"):
+                return Outcome(result.get("message", ""))
+            return Outcome(f"Release undone. {result['points_returned']:,} pending points were taken back and your benefit is restored.")
+
         if isinstance(action, SetBags):
             _call(conn, "pf_set_bags", t.passenger_id, booking, action.count, now)
             return Outcome()
+
+        if isinstance(action, Release) and action.benefit in PERK_BENEFIT:
+            result = _call(conn, "pf_release_perk", t.passenger_id, booking, PERK_BENEFIT[action.benefit], idem, now)
+            _failed(result)
+            if result.get("replayed"):
+                return Outcome(result.get("message", ""))
+            return Outcome(f"All set! {result['points_pending']:,} points are pending and will post after you fly.")
+
+        if isinstance(action, Redeem) and action.benefit in PERK_BENEFIT:
+            result = _call(conn, "pf_redeem_perk", t.passenger_id, booking, PERK_BENEFIT[action.benefit], idem, now)
+            _failed(result)
+            if result.get("replayed"):
+                return Outcome(result.get("message", ""))
+            paid = _paid(result["perkflex_points_used"], result["rapid_rewards_points_used"])
+            return Outcome(f"You’re all set. {result['message']} for {paid} points.")
 
         if isinstance(action, Release):
             fn = "pf_release_bag" if action.benefit == "bag" else "pf_release_seat"
@@ -173,9 +305,9 @@ def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings
                 _failed(result)
                 if result.get("replayed"):
                     return Outcome(result.get("message", ""))
-                cost = result["perkflex_points_used"] + result["rapid_rewards_points_used"]
+                paid = _paid(result["perkflex_points_used"], result["rapid_rewards_points_used"])
                 count = conn.execute("SELECT pf_bag_allowance(%s) AS n", (booking,)).fetchone()["n"]
-                return Outcome(f"You’re all set. Checked bag {count} added for {cost:,} points.")
+                return Outcome(f"You’re all set. Checked bag {count} added for {paid} points.")
             if action.benefit == "standard":
                 raise ActionRefused("Your current seat already includes this benefit.")
             result = _call(conn, "pf_redeem_seat", t.passenger_id, booking, SEAT_TO_DB[action.benefit], idem, now)
@@ -184,9 +316,8 @@ def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings
                 return Outcome(result.get("message", ""))
             if result.get("points_charged", 0) == 0:
                 return Outcome("This seat is already covered by your benefits. No points charged.")
-            return Outcome(
-                f"You’re all set. {SEAT_NAMES[action.benefit]} seat added for {result['points_charged']:,} points."
-            )
+            paid = _paid(*_seat_split(conn, result["transaction_id"]))
+            return Outcome(f"You’re all set. {SEAT_NAMES[action.benefit]} seat added for {paid} points.")
 
         if isinstance(action, CheckIn):
             _call(conn, "pf_complete_checkin", t.passenger_id, booking, now)
@@ -195,10 +326,33 @@ def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings
         if isinstance(action, Complete):
             result = _call(conn, "pf_complete_booking", t.passenger_id, booking, now)
             pf, rr = result.get("perkflex_points_posted", 0), result.get("rapid_rewards_points_posted", 0)
-            parts = [p for p in (f"{pf:,} PerkFlex points" if pf else "", f"{rr:,} Rapid Rewards points" if rr else "") if p]
+            bonus = result.get("completion_bonus", 0)
+            parts = [
+                p
+                for p in (
+                    f"+{pf:,} PerkFlex (released benefits)" if pf else "",
+                    f"+{bonus:,} PerkFlex (completion bonus)" if bonus else "",
+                    f"+{rr:,} Rapid Rewards (flying)" if rr else "",
+                )
+                if p
+            ]
             if parts:
-                return Outcome(f"Flight complete! {' and '.join(parts)} are now available.")
+                return Outcome(f"Flight complete! {' and '.join(parts)}. Your PerkFlex points stay for your next flight.")
             return Outcome("Flight complete. Thanks for trying PerkFlex!")
     except ActionRefused as refusal:
         return Outcome(str(refusal), error=True)
     raise AssertionError(f"unhandled action {action!r}")  # pragma: no cover
+
+
+def perform(conn: psycopg.Connection, t: TravellerInfo, action: Action, settings: Settings) -> Outcome:
+    """Applies one action for the signed-in traveller, then queues its email. Never commits.
+
+    The email is queued in the same transaction, so a refused or rolled-back action sends nothing. A repeated request
+    with the same idempotency key queues the email once.
+    """
+    outcome = _apply(conn, t, action, settings)
+    kind = EMAIL_KIND_BY_ACTION.get(action.type)
+    if kind and not outcome.error and outcome.notice and settings.email_enabled:
+        key = f"{t.passenger_id}:{action.idempotency_key}:{kind}" if action.idempotency_key else None
+        queue_for_traveller(conn, t.passenger_id, kind, outcome.notice, key)
+    return outcome

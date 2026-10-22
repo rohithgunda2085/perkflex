@@ -27,10 +27,10 @@ def test_releasing_a_bag_is_pending_then_posts_once_after_the_trip(conn, test_se
     assert (s0["balance"], s0["pending"], s0["booking"]["bags"]) == (12450, 0, 2)
 
     out, s = act(conn, test_settings, "P14", {"type": "release", "benefit": "bag"})
-    assert not out.error and "800 points are pending" in out.notice
-    assert (s["balance"], s["pending"], s["booking"]["bags"], s["booking"]["released"]) == (12450, 800, 1, True)
+    assert not out.error and "880 points are pending" in out.notice  # 800 + 10% Silver bonus
+    assert (s["balance"], s["pending"], s["booking"]["bags"], s["booking"]["released"]) == (12450, 880, 1, True)
     assert [(e["kind"], e["status"], e["points"], e["label"]) for e in s["ledger"]] == [
-        ("release", "pending", 800, "Unused checked-bag allowance")
+        ("release", "pending", 880, "Unused checked-bag allowance")
     ]
 
     out, _ = act(conn, test_settings, "P14", {"type": "release", "benefit": "bag"})
@@ -42,9 +42,10 @@ def test_releasing_a_bag_is_pending_then_posts_once_after_the_trip(conn, test_se
     assert out.error  # offers close at check-in
 
     out, s = act(conn, test_settings, "P14", {"type": "complete"})
-    assert not out.error and "800 PerkFlex points" in out.notice and "Rapid Rewards" in out.notice
+    assert not out.error and "+880 PerkFlex (released benefits)" in out.notice and "+50 PerkFlex (completion bonus)" in out.notice
+    assert "Rapid Rewards (flying)" in out.notice
     assert s["booking"]["status"] == "flown" and s["pending"] == 0
-    assert s["balance"] == 12450 + 800 + 2700  # the reward plus the Rapid Rewards earned for flying
+    assert s["balance"] == 12450 + 880 + 50 + 3780  # the reward, the 50-point completion bonus, and the flying points (2,700 + 40% Silver)
     assert s["ledger"][0]["status"] == "posted"
 
     out, s2 = act(conn, test_settings, "P14", {"type": "complete"})  # completing again posts nothing more
@@ -74,7 +75,7 @@ def test_buying_a_bag_with_points_then_checking_in(conn, test_settings):
     assert out.error and "more bags than your allowance" in out.notice
 
     out, s = act(conn, test_settings, "P02", {"type": "redeem", "benefit": "bag"})
-    assert not out.error and "Checked bag 1 added for 3,000 points" in out.notice
+    assert not out.error and "Checked bag 1 added for 3,000 Rapid Rewards points" in out.notice
     assert (s["balance"], s["booking"]["bags"], s["booking"]["redeemedBags"]) == (3000, 1, 1)
     assert [(e["kind"], e["points"], e["label"]) for e in s["ledger"]] == [("redemption", -3000, "Checked bag 1")]
     assert act(conn, test_settings, "P02", {"type": "checkin"})[0].error is False
@@ -88,7 +89,7 @@ def test_not_enough_points_changes_nothing(conn, test_settings):
 
 def test_upgrading_a_seat_with_points(conn, test_settings):
     out, s = act(conn, test_settings, "P04", {"type": "redeem", "benefit": "preferred"})  # Dev, 6,000 points
-    assert not out.error and "Preferred seat added for 2,200 points" in out.notice
+    assert not out.error and "Preferred seat added for 2,200 Rapid Rewards points" in out.notice
     b = s["booking"]
     assert (s["balance"], b["seatClass"], b["redeemedSeat"], b["seatSource"]) == (3800, "preferred", True, "PerkFlex redemption")
     assert "18B" in s["inventory"]["seats"]["standard"]
@@ -188,7 +189,7 @@ def test_a_new_booking_can_be_checked_in_and_completed(conn, test_settings):
     assert not out.error and s["pending"] == 800 and s["booking"]["bags"] == 1
     act(conn, test_settings, "P18", {"type": "checkin"})
     out, s = act(conn, test_settings, "P18", {"type": "complete"})
-    assert s["balance"] == 800 + 2700 and s["pending"] == 0 and s["booking"]["status"] == "flown"
+    assert s["balance"] == 800 + 50 + 2700 and s["pending"] == 0 and s["booking"]["status"] == "flown"
 
 
 def test_a_tier_traveller_booking_is_not_charged_twice_for_what_the_tier_gives(conn, test_settings):
@@ -264,3 +265,19 @@ def test_the_nearest_flight_is_used_when_the_date_has_none(conn, test_settings):
     assert s["booking"]["flightId"] == "WN968" and s["booking"]["date"] == "2027-12-16"
     _, s = act(conn, test_settings, "P18", {**BOOK, "flightId": "WN2418", "date": "2026-10-22"})
     assert s["booking"]["date"] == "2026-10-22"  # Rohith's flight date exists for 2418
+
+
+def test_a_buy_takes_perkflex_first_then_rapid_rewards_and_the_notice_says_which(conn, test_settings):
+    conn.execute("UPDATE fact_points_wallet SET perkflex_available = 400 WHERE passenger_id = 'P04'")  # Dev: 6,000 Rapid Rewards
+    out, s = act(conn, test_settings, "P04", {"type": "redeem", "benefit": "preferred"})  # 2,200 points
+    assert not out.error and "Preferred seat added for 400 PerkFlex + 1,800 Rapid Rewards points" in out.notice
+    assert s["wallets"] == {"perkflex": {"available": 0, "pending": 0}, "rapidRewards": {"available": 4200, "pending": s["wallets"]["rapidRewards"]["pending"]}}
+    redemption = next(e for e in s["ledger"] if e["kind"] == "redemption")
+    assert (redemption["paidPerkflex"], redemption["paidRapid"], redemption["wallet"]) == (400, 1800, "both")
+
+
+def test_a_perkflex_balance_that_covers_the_price_leaves_rapid_rewards_alone(conn, test_settings):
+    conn.execute("UPDATE fact_points_wallet SET perkflex_available = 3000 WHERE passenger_id = 'P02'")  # Ravi
+    out, s = act(conn, test_settings, "P02", {"type": "redeem", "benefit": "bag"})  # 3,000 points
+    assert "added for 3,000 PerkFlex points" in out.notice
+    assert (s["wallets"]["perkflex"]["available"], s["wallets"]["rapidRewards"]["available"]) == (0, 6000)

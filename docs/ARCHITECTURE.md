@@ -131,6 +131,7 @@ flowchart TB
 | `POST /api/quotes`                                                  | All four fares priced for a route, flight and needs                                    |
 | `POST /api/actions`                                                 | One action: `open-checkin`, `bags`, `release`, `redeem`, `checkin`, `complete`, `book` |
 | `POST /api/assistant/best-fare`                                     | AI fare recommendation                                                                 |
+| `POST /api/assistant/perk-advice`                                   | Check-in perk advisor (advice only; offers computed by the rules)                      |
 | `POST /api/demo/switch`                                             | Switch demo traveller (demo mode only)                                                 |
 
 Business-rule refusals (not enough points, seat taken) return HTTP 200 with the unchanged state and `error: true`. Authentication and validation problems use real 4xx codes.
@@ -170,6 +171,13 @@ Business-rule refusals (not enough points, seat taken) return HTTP 200 with the 
 Region used so far: us-east-1.
 
 ### AWS deployment architecture
+
+> **What `infra/perkflex-stack.yaml` deploys today, versus the target below.** The template creates ECS on Fargate
+> (not Express Mode) behind an ALB, S3 + CloudFront, Secrets Manager and a Bedrock task role, and reuses your RDS.
+> Tasks run in the subnets you pass in (public IP optional), and it creates **no WAF and no VPC endpoints**.
+> Private subnets, VPC endpoints, WAF, Express Mode and ElastiCache are the hardened target, not what the template
+> builds. Treat the diagram and tables in this section as that target.
+
 
 ```mermaid
 flowchart LR

@@ -4,6 +4,7 @@ Run locally:   npm run api           (or: cd backend && ../../.venv/bin/python -
 In a container: see backend/Dockerfile
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,7 +15,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import get_settings
 from .db import close_pool, open_pool, request_connection
-from .routes import assistant, auth, travel
+from .email.ses import worker_loop
+from .routes import admin, advisor, assistant, auth, travel
+from .routes import email as email_routes
 
 log = logging.getLogger("perkflex")
 MAX_BODY_BYTES = 8 * 1024
@@ -26,7 +29,11 @@ async def lifespan(_: FastAPI):
     if len(settings.session_secret) < 32:
         raise RuntimeError("SESSION_SECRET must be set to at least 32 characters.")
     open_pool()
+    # Email is sent by a small loop inside the API when SES is configured. Several tasks can run it at once.
+    sender = asyncio.create_task(worker_loop(settings)) if settings.email_enabled and settings.email_from else None
     yield
+    if sender:
+        sender.cancel()
     close_pool()
 
 
@@ -74,3 +81,6 @@ def health() -> dict[str, bool]:
 app.include_router(auth.router)
 app.include_router(travel.router)
 app.include_router(assistant.router)
+app.include_router(advisor.router)
+app.include_router(admin.router)
+app.include_router(email_routes.router)
