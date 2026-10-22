@@ -1,0 +1,6 @@
+# The advisor loop only: no database driver, no web framework of our own.
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.4
+boto3==1.43.116
+bedrock-agentcore

@@ -12,6 +12,7 @@ from botocore.config import Config
 
 from ..config import get_settings
 from ..rules.pricing import Needs
+from ..advisor.guardrails import converse_extras, raise_if_blocked
 from .tools import TOOL_CONFIG, ToolContext, describe_traveller, run_tool
 
 MAX_TURNS = 6
@@ -92,7 +93,9 @@ def run_agent(inp: AgentInput) -> AgentResult:
             messages=messages,
             toolConfig=TOOL_CONFIG,
             inferenceConfig={"maxTokens": 900, "temperature": 0.2},
+            **converse_extras(),
         )
+        raise_if_blocked(response)
         reply = response["output"]["message"]
         messages.append(reply)
 

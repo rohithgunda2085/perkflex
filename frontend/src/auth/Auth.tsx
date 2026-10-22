@@ -34,7 +34,7 @@ export function LoginPage({
     setBusy(true);
     try {
       const { user } = await api.login(username, password);
-      if (!user.profileId) {
+      if (!user.profileId && user.role !== "AIRLINE_ADMIN") {
         setError("This account does not have a traveller view in this demo.");
         return;
       }

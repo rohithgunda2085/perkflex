@@ -83,6 +83,7 @@ def session_to_public(session: Session) -> dict:
         "loginId": session.login_id,
         "passengerId": session.passenger_id,
         "profileId": session.profile_id,
+        "role": "PASSENGER" if session.passenger_id else "AIRLINE_ADMIN",
     }
 
 

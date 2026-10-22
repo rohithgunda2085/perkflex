@@ -22,6 +22,8 @@ class TravellerInfo:
     rr_pending: int
     pf_available: int
     pf_pending: int
+    rapid_first: bool = False
+    tqp: int = 0
 
     @property
     def pricing(self) -> Traveller:
@@ -35,7 +37,7 @@ class TravellerInfo:
 
 _TRAVELLER_SQL = """SELECT p.passenger_id, u.login_id, p.passenger_name, p.demo_story, p.tier_status,
                   p.credit_card_type, w.rapid_rewards_available, w.rapid_rewards_pending,
-                  w.perkflex_available, w.perkflex_pending
+                  w.perkflex_available, w.perkflex_pending, w.pay_rapid_first, p.tqp_ytd
              FROM dim_passenger p
              JOIN fact_points_wallet w USING (passenger_id)
              JOIN dim_user_account u USING (passenger_id)"""
@@ -53,6 +55,8 @@ def _traveller(row: dict) -> TravellerInfo:
         rr_pending=row["rapid_rewards_pending"],
         pf_available=row["perkflex_available"],
         pf_pending=row["perkflex_pending"],
+        rapid_first=row["pay_rapid_first"],
+        tqp=row["tqp_ytd"],
     )
 
 

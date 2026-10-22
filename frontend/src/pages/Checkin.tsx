@@ -18,14 +18,29 @@ import {
 import type { Action, Profile, SeatClass, Store } from "../rules/types.ts";
 import { pendingPoints } from "../rules/store.ts";
 import {
-  RULES,
   SEAT_NAMES,
   SEAT_ORDER,
   fareById,
   fmt,
   money,
 } from "../rules/data.ts";
-import { greetingName } from "../rules/helpers.ts";
+import { greetingName, payLabel, paySplit, redeemPrice, releaseReward } from "../rules/helpers.ts";
+import { AdvisorPanel } from "./AdvisorPanel.tsx";
+import { SmallPerks } from "./SmallPerks.tsx";
+import {
+  EarningsChart,
+  ExpiryNotice,
+  GoalsCard,
+  GroupCard,
+  SalesCard,
+  Notifications,
+  NextFlightPreview,
+  PayOrderToggle,
+  ReuseCard,
+  StatusCard,
+  EmailCard,
+  UndoBar,
+} from "./Extras.tsx";
 import {
   DateLabel,
   EmptyState,
@@ -63,33 +78,43 @@ export function CheckinPage({
     inv = state.inventories[b.flightId],
     fare = fareById(b.fare),
     available = state.balances[profile.id],
+    pfAvailable = state.wallets.perkflex.available,
     pending = pendingPoints(state, profile.id),
     isOpen = b.status === "booked";
+  const bonusPct = state.rewards?.bonusPct ?? 0;
+  const completion = state.rewards?.completionBonus ?? 0;
+  const bonusNote =
+    (bonusPct ? ` Includes your ${bonusPct}% ${profile.tier} bonus.` : "") +
+    (completion ? ` Complete your trip and get ${completion} bonus points.` : "");
+  const bagReward = releaseReward(state.rewards, "bag");
   const seatReward =
-    b.seatClass === "standard" ? 0 : RULES.release[b.seatClass];
+    b.seatClass === "standard" ? 0 : releaseReward(state.rewards, b.seatClass);
   const canBag =
     b.bags > b.actualBags &&
     b.bags - b.redeemedBags > 0 &&
     !b.released &&
-    inv.budget >= RULES.release.bag;
+    inv.budget >= bagReward;
   const canSeat =
     b.seatClass !== "standard" &&
     !b.redeemedSeat &&
     !b.released &&
     inv.seats.standard.length > 0 &&
     inv.budget >= seatReward;
-  const bagCost = b.bags === 0 ? RULES.redeem.bag1 : RULES.redeem.bag2;
+  const bagCost = redeemPrice(state.prices, b.bags === 0 ? "bag1" : "bag2");
   const e = b.checkinEntitlements;
+  const rrAvailable = state.wallets.rapidRewards.available;
+  const pays = (cost: number) =>
+    payLabel(paySplit(cost, pfAvailable, rrAvailable, state.payRapidFirst));
   function release(benefit: "bag" | "seat") {
     confirm({
       title:
         benefit === "bag"
           ? "Travel lighter. Get a little back."
           : "A different seat. A little reward.",
-      description:
+      description: (
         benefit === "bag"
           ? "Give up one included standard-size bag allowance on this flight. Your ticket and other benefits stay yours."
-          : "Confirm your move to the available Standard seat below. The original seat returns to the airline’s inventory.",
+          : "Confirm your move to the available Standard seat below. The original seat returns to the airline’s inventory.") + bonusNote,
       before:
         benefit === "bag"
           ? `${b.bags} checked bags included`
@@ -98,7 +123,7 @@ export function CheckinPage({
         benefit === "bag"
           ? `${b.bags - 1} checked bag${b.bags - 1 === 1 ? "" : "s"} included`
           : `Standard · Seat ${inv.seats.standard[0]}`,
-      points: benefit === "bag" ? RULES.release.bag : seatReward,
+      points: benefit === "bag" ? bagReward : seatReward,
       pending: true,
       action: { type: "release", profileId: profile.id, benefit },
       label: benefit === "bag" ? "Release bag allowance" : "Confirm seat swap",
@@ -112,8 +137,8 @@ export function CheckinPage({
       benefit === "bag"
         ? bagCost
         : benefit === "extra"
-          ? RULES.redeem.extra
-          : RULES.redeem.preferred;
+          ? redeemPrice(state.prices, "extra")
+          : redeemPrice(state.prices, "preferred");
     confirm({
       title:
         benefit === "bag"
@@ -121,7 +146,7 @@ export function CheckinPage({
           : "A little more comfort awaits.",
       description: free
         ? "Your member benefits already cover this seat. No points will be charged."
-        : "Use your available points for this flight. Pending rewards cannot be spent before they post.",
+        : `Pays ${pays(cost)} points: ${state.payRapidFirst ? "Rapid Rewards first, then PerkFlex" : "PerkFlex rewards first, then Rapid Rewards"}. Pending rewards cannot be spent before they post.`,
       before:
         benefit === "bag"
           ? `${b.bags} checked bags included`
@@ -294,6 +319,9 @@ export function CheckinPage({
                   </div>
                 )}
               </section>
+              <AdvisorPanel
+                refreshKey={`${available}:${pending}:${b.bags}:${b.actualBags}:${b.seat}:${b.released}:${(b.perks ?? []).map((p) => (p.released ? "r" : p.bought ? "b" : "-")).join("")}`}
+              />
               <section className="offers-section">
                 <div className="offers-heading">
                   <h3>
@@ -343,7 +371,7 @@ export function CheckinPage({
                         </div>
                         <div className="offer-action">
                           <strong>
-                            +{fmt(RULES.release.bag)} <small>pts</small>
+                            +{fmt(bagReward)} <small>pts</small>
                           </strong>
                           <span>after you fly</span>
                           <button
@@ -422,6 +450,7 @@ export function CheckinPage({
                       <strong>
                         {fmt(bagCost)} <small>pts</small>
                       </strong>
+                      <small className="pay-split">Pays {pays(bagCost)}</small>
                       <button
                         className="button secondary small-button"
                         disabled={available < bagCost}
@@ -445,8 +474,8 @@ export function CheckinPage({
                     .map((seat) => {
                       const cost =
                           seat === "extra"
-                            ? RULES.redeem.extra
-                            : RULES.redeem.preferred,
+                            ? redeemPrice(state.prices, "extra")
+                            : redeemPrice(state.prices, "preferred"),
                         free =
                           SEAT_ORDER.indexOf(e.seat) >=
                           SEAT_ORDER.indexOf(seat);
@@ -463,6 +492,9 @@ export function CheckinPage({
                             {free ? "Included" : fmt(cost)}{" "}
                             <small>{free ? "in your benefits" : "pts"}</small>
                           </strong>
+                          {!free && (
+                            <small className="pay-split">Pays {pays(cost)}</small>
+                          )}
                           <button
                             className="button secondary small-button"
                             disabled={!free && available < cost}
@@ -494,6 +526,35 @@ export function CheckinPage({
                   )}
                 </div>
               </section>
+              <UndoBar
+                undoable={b.undoable ?? []}
+                onUndo={(u) =>
+                  dispatch({ type: "undo", profileId: profile.id, benefit: u.benefit })
+                }
+              />
+              <Notifications items={state.notifications} />
+              <ReuseCard reuse={b.reuse} />
+              <ExpiryNotice wallets={state.wallets} />
+              <PayOrderToggle
+                rapidFirst={state.payRapidFirst}
+                wallets={state.wallets}
+                onChange={(rapidFirst) =>
+                  dispatch({ type: "payment-order", profileId: profile.id, rapidFirst })
+                }
+              />
+              <SalesCard booking={b} prices={state.prices} />
+              <SmallPerks
+                perks={b.perks ?? []}
+                rapidAvailable={rrAvailable}
+                rapidFirst={state.payRapidFirst}
+                profileId={profile.id}
+                available={available}
+                perkflexAvailable={pfAvailable}
+                budget={inv.budget}
+                bonusPct={bonusPct}
+                wantsEarlyBoarding={b.needs.early}
+                confirm={confirm}
+              />
               <div className="checkin-cta">
                 <div>
                   <ShieldCheck size={20} />
@@ -764,12 +825,15 @@ export function WalletPage({
   state,
   profile,
   onCheckin,
+  dispatch,
 }: {
   state: Store;
   profile: Profile;
   onCheckin: () => void;
+  dispatch?: (a: Action) => void;
 }) {
   const pending = pendingPoints(state, profile.id),
+    earnings = state.earnings,
     ledger = state.ledger.filter((l) => l.profileId === profile.id),
     credited = ledger
       .filter((l) => l.kind === "release" && l.status === "posted")
@@ -777,6 +841,12 @@ export function WalletPage({
     spent = -ledger
       .filter((l) => l.kind === "redemption")
       .reduce((n, l) => n + l.points, 0);
+  // What this was worth in cash at list price: benefits added with points, and unused benefits turned into points.
+  const added = ledger.filter((l) => l.kind === "redemption"),
+    released = ledger.filter((l) => l.kind === "release"),
+    addedCash = added.reduce((n, l) => n + (l.cashValue ?? 0), 0),
+    releasedCash = released.reduce((n, l) => n + (l.cashValue ?? 0), 0),
+    earnedTotal = released.reduce((n, l) => n + l.points, 0);
   return (
     <main className="container wallet-page page-enter">
       <div className="page-title-row">
@@ -790,29 +860,48 @@ export function WalletPage({
         </Pill>
       </div>
       <div className="wallet-overview">
-        <div className="wallet-hero">
-          <div className="points-card-label">
-            <Wallet size={21} /> RAPID REWARDS
-          </div>
-          <strong>{fmt(state.balances[profile.id])}</strong>
-          <span>available points</span>
-          <div>
-            <span className={`avatar avatar-small ${profile.color}`}>
-              {profile.initials}
+        <div className="wallet-pair">
+          <div className="wallet-hero" aria-label="Rapid Rewards wallet">
+            <div className="points-card-label">
+              <Wallet size={21} /> RAPID REWARDS
+            </div>
+            <strong>{fmt(state.wallets.rapidRewards.available)}</strong>
+            <span>available points</span>
+            <span>
+              {fmt(state.wallets.rapidRewards.pending)} more after you fly
             </span>
-            {profile.name}
-            <Pill tone="white">{profile.tier}</Pill>
+            <div>
+              <span className={`avatar avatar-small ${profile.color}`}>
+                {profile.initials}
+              </span>
+              {profile.name}
+              <Pill tone="white">{profile.tier}</Pill>
+            </div>
+            <span className="wallet-watermark">
+              <Sparkles size={180} strokeWidth={0.7} />
+            </span>
           </div>
-          <span className="wallet-watermark">
-            <Sparkles size={180} strokeWidth={0.7} />
-          </span>
+          <div
+            className="wallet-hero perkflex"
+            aria-label="PerkFlex Rewards wallet"
+          >
+            <div className="points-card-label">
+              <Gift size={21} /> PERKFLEX REWARDS
+            </div>
+            <strong>{fmt(state.wallets.perkflex.available)}</strong>
+            <span>available points</span>
+            <span>
+              {fmt(state.wallets.perkflex.pending)} pending until you fly
+            </span>
+            <div>Spent first on your next purchase, then Rapid Rewards.</div>
+          </div>
         </div>
         <div className="wallet-stat">
           <span className="journey-icon yellow">
             <Clock3 size={23} />
           </span>
           <strong>{fmt(pending)}</strong>
-          <span>Pending rewards</span>
+          <span>PerkFlex pending</span>
           <small>Available after you complete your flight</small>
         </div>
         <div className="wallet-stat">
@@ -832,22 +921,97 @@ export function WalletPage({
           <small>For a trip that fits you a little better</small>
         </div>
       </div>
+      <ExpiryNotice wallets={state.wallets} />
+      {dispatch && (
+        <PayOrderToggle
+          rapidFirst={state.payRapidFirst}
+          wallets={state.wallets}
+          onChange={(rapidFirst) =>
+            dispatch({ type: "payment-order", profileId: profile.id, rapidFirst })
+          }
+        />
+      )}
+      <Notifications items={state.notifications} />
+      {dispatch && (
+        <GroupCard group={state.group} perkflexAvailable={state.wallets.perkflex.available} dispatch={dispatch} />
+      )}
+      <GoalsCard wallets={state.wallets} perks={state.bookings[profile.id]?.perks} />
+      <NextFlightPreview
+        wallets={state.wallets}
+        rapidFirst={state.payRapidFirst}
+        perks={state.bookings[profile.id]?.perks}
+      />
+      <EarningsChart ledger={ledger} earnings={earnings} />
+      <StatusCard status={state.status} />
+      <EmailCard />
+      {(added.length > 0 || released.length > 0) && (
+        <section className="value-summary" aria-label="What your points did">
+          <h2>What your points did</h2>
+          <div className="value-grid">
+            <div>
+              <strong>{money(addedCash)}</strong>
+              <span>
+                of extras added with {fmt(spent)} points
+              </span>
+              <small>
+                {added.length} benefit{added.length === 1 ? "" : "s"}, valued at
+                the usual add-on price
+              </small>
+            </div>
+            <div>
+              <strong>{money(releasedCash)}</strong>
+              <span>
+                of unused benefits turned into {fmt(earnedTotal)} points
+              </span>
+              <small>
+                {released.length} release{released.length === 1 ? "" : "s"}, some
+                still pending until you fly
+              </small>
+            </div>
+          </div>
+        </section>
+      )}
       <section className="activity-section">
         <div className="section-heading">
           <h2>Your activity</h2>
           <span>
             {ledger.length} PerkFlex transaction{ledger.length === 1 ? "" : "s"}
+            {earnings.length > 0 && ` · ${earnings.length} for flying`}
           </span>
         </div>
         {ledger.length > 0 ? (
           <div className="ledger">
+            {earnings.map((x) => (
+              <div className="ledger-row" key={x.id}>
+                <span className="journey-icon blue">
+                  <Plane size={21} />
+                </span>
+                <div>
+                  <strong>{x.label}</strong>
+                  <small>
+                    {x.bookingId} · Rapid Rewards ·{" "}
+                    {x.status === "pending"
+                      ? "Posts after travel"
+                      : "Added to your account"}
+                  </small>
+                </div>
+                <Pill tone={x.status === "pending" ? "yellow" : "mint"}>
+                  {x.status === "pending" ? "Pending" : "Posted"}
+                </Pill>
+                <strong className="positive">
+                  +{fmt(x.points)} <small>pts</small>
+                </strong>
+              </div>
+            ))}
             {ledger.map((l) => (
               <div className="ledger-row" key={l.id}>
                 <span
-                  className={`journey-icon ${l.kind === "release" ? "mint" : "lavender"}`}
+                  className={`journey-icon ${l.kind === "release" || l.kind === "bonus" || l.kind === "gift" ? "mint" : l.kind === "expiry" ? "yellow" : "lavender"}`}
                 >
-                  {l.kind === "release" ? (
+                  {l.kind === "release" || l.kind === "bonus" || l.kind === "gift" ? (
                     <Gift size={21} />
+                  ) : l.kind === "expiry" ? (
+                    <Clock3 size={21} />
                   ) : (
                     <Armchair size={21} />
                   )}
@@ -855,10 +1019,19 @@ export function WalletPage({
                 <div>
                   <strong>{l.label}</strong>
                   <small>
-                    {l.bookingId} ·{" "}
-                    {l.kind === "release"
-                      ? "Benefit released"
-                      : "Benefit added"}{" "}
+                    {l.bookingId ? `${l.bookingId} · ` : ""}
+                    {l.kind === "expiry"
+                      ? "PerkFlex · expired"
+                      : l.kind === "bonus"
+                      ? "Trip completed · PerkFlex"
+                      : l.kind === "gift"
+                      ? "Travel group · PerkFlex"
+                      : l.kind === "release"
+                      ? "Benefit released · PerkFlex"
+                      : `Benefit added · paid ${payLabel({
+                          perkflex: l.paidPerkflex ?? 0,
+                          rapid: l.paidRapid ?? -l.points,
+                        })}`}{" "}
                     ·{" "}
                     {l.status === "pending"
                       ? "Posts after travel"
@@ -879,11 +1052,14 @@ export function WalletPage({
                 <Coins size={21} />
               </span>
               <div>
-                <strong>Opening balance</strong>
-                <small>Rapid Rewards points</small>
+                <strong>Spendable now</strong>
+                <small>
+                  {fmt(state.wallets.perkflex.available)} PerkFlex +{" "}
+                  {fmt(state.wallets.rapidRewards.available)} Rapid Rewards
+                </small>
               </div>
               <strong>
-                {fmt(profile.points)} <small>pts</small>
+                {fmt(state.balances[profile.id])} <small>pts</small>
               </strong>
             </div>
           </div>

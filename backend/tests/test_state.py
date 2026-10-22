@@ -7,7 +7,7 @@ from app.services.state import build_state
 
 pytestmark = pytest.mark.db
 
-ALL_PASSENGERS = [f"P{n:02d}" for n in range(1, 21)]
+ALL_PASSENGERS = [f"P{n:02d}" for n in range(1, 29)]
 
 
 @pytest.mark.parametrize("pid", ALL_PASSENGERS)
@@ -16,7 +16,7 @@ def test_every_traveller_has_a_coherent_view(conn, test_settings, pid):
     profile, booking = s["profile"], s["booking"]
     assert profile["name"] and profile["initials"] and profile["tier"] in ("Member", "Silver", "Gold", "Platinum")
     assert s["balance"] == profile["points"] >= 0
-    assert s["demo"] is True and len(s["travellers"]) == 20
+    assert s["demo"] is True and len(s["travellers"]) == 28
     if pid == "P18":  # Michael Rankin: the new traveller
         assert booking is None and s["inventory"] is None and profile["hasTrip"] is False
         return
@@ -67,3 +67,14 @@ def test_avatars_are_stable_and_distinct_by_tier(conn, test_settings):
     people = {t["id"]: t for t in build_state(conn, "P01", test_settings)["travellers"]}
     assert people["leena"]["color"] == "gold" and people["kabir"]["color"] == "silver"
     assert people["deeann.carlin"]["initials"] == "DC" and people["michael.hanna"]["initials"] == "MH"
+
+
+def test_the_eight_added_travellers_cover_every_kind_of_status_and_card(conn, test_settings):
+    kinds = {
+        "P21": ("Member", "None"), "P22": ("Silver", "None"), "P23": ("Gold", "None"), "P24": ("Platinum", "None"),
+        "P25": ("Member", "Plus"), "P26": ("Member", "Premier"), "P27": ("Member", "Priority"), "P28": ("Silver", "Priority"),
+    }
+    for pid, (tier, card) in kinds.items():
+        s = build_state(conn, pid, test_settings)
+        assert (s["profile"]["tier"], s["profile"]["card"]) == (tier, card), pid
+        assert s["booking"]["flightId"] in ("WN968", "WN1820")

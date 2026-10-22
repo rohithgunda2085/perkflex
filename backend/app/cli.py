@@ -4,11 +4,16 @@
   inspect              list tables, columns and row counts (read only)
   migrate              apply pending SQL migrations
   seed-users [--reset] set passwords for accounts that still have the placeholder hash (or all, with --reset)
+  demo-reset --yes     DESTRUCTIVE: drop every table in the demo schema, rebuild it from the migrations (fresh
+                       seeded travellers, trips, wallets and ledger) and issue new demo passwords
 """
 
 import argparse
+import re
 import sys
 import time
+
+from psycopg import sql
 
 from .config import BACKEND, get_settings
 from .db import connect
@@ -98,6 +103,38 @@ def cmd_seed_users(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_demo_reset(args: argparse.Namespace) -> int:
+    """Puts the demo back to its starting state. The ledger is append-only by design, so the only honest reset is to
+    drop the schema and rebuild it. Guarded: it needs --yes, demo mode, and a named schema unless --allow-public."""
+    settings = get_settings()
+    if not args.yes:
+        print("demo-reset deletes ALL data in the demo schema. Re-run with --yes to confirm.", file=sys.stderr)
+        return 2
+    if not settings.demo_mode:
+        print("Refusing: DEMO_MODE is off. demo-reset only runs against a demo.", file=sys.stderr)
+        return 2
+    schema = settings.db_schema or "public"
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", schema):
+        print(f"Refusing: {schema!r} is not a plain schema name.", file=sys.stderr)
+        return 2
+    if schema == "public" and not args.allow_public:
+        print(
+            "Refusing to reset the 'public' schema. Set DB_SCHEMA to a schema used only for the demo, "
+            "or pass --allow-public if this database holds nothing else.",
+            file=sys.stderr,
+        )
+        return 2
+    with connect(autocommit=True) as conn:
+        db = conn.execute("SELECT current_database() AS d").fetchone()["d"]
+        print(f"Resetting schema {schema!r} in database {db!r} ...")
+        conn.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))
+        conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        run_migrations(conn)
+    cmd_seed_users(argparse.Namespace(reset=True))
+    print("Demo reset complete. New passwords are in backend/db/demo-credentials.local.md")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -107,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
     seed = sub.add_parser("seed-users")
     seed.add_argument("--reset", action="store_true")
     seed.set_defaults(func=cmd_seed_users)
+    reset = sub.add_parser("demo-reset")
+    reset.add_argument("--yes", action="store_true", help="confirm that all data in the demo schema is deleted")
+    reset.add_argument("--allow-public", action="store_true", help="allow resetting the 'public' schema")
+    reset.set_defaults(func=cmd_demo_reset)
     args = parser.parse_args(argv)
     get_settings()
     try:

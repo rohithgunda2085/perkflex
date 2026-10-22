@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from app.rules.data import TIER_FLYING_BONUS_PCT, with_bonus
+
 from app.rules.pricing import (
     Inventory,
     Needs,
@@ -54,6 +56,13 @@ def test_quotes_match_typescript_for_every_case():
             _inventory(case["inventory"]),
         )
         got = [_dump(q) for q in quotes]
+        # Flying points now include the status bonus and the quote says how they were worked out; the TypeScript
+        # fixtures predate both, so check those two fields separately and compare everything else as it was.
+        bonus = TIER_FLYING_BONUS_PCT[case["tier"]]
+        for g, want in zip(got, case["quotes"]):
+            assert g.pop("statusBonus") == bonus and g.pop("rate") > 0
+            assert g["points"] == with_bonus(want["points"], bonus)
+            g["points"] = want["points"]
         best = recommended_quote(quotes)
         if got != case["quotes"] or (best.fare if best else None) != case["recommended"]:
             mismatches.append(i)

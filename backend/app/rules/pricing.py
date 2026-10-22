@@ -19,6 +19,7 @@ from .data import (
     SEAT_NAMES,
     TAX_CENTS,
     TIER_BAGS,
+    TIER_FLYING_BONUS_PCT,
     Card,
     FareId,
     SeatClass,
@@ -27,6 +28,7 @@ from .data import (
     Tier,
     fare_by_id,
     flight_by_id,
+    flying_points,
     seat_rank,
 )
 
@@ -84,6 +86,9 @@ class Quote(CamelModel):
     bag_source: str
     issues: list[str]
     points: int
+    # How `points` was worked out: base fare x rate, plus the traveller's status bonus (percent).
+    rate: int = 0
+    status_bonus: int = 0
 
 
 class Inventory(CamelModel):
@@ -212,7 +217,9 @@ def quote_fares(
                     "Included benefits + bag add-on" if needs.bags > e.bags else e.bag_source
                 ),
                 issues=issues,
-                points=base * fare.multiplier,
+                points=flying_points(base, fare.multiplier, traveller.tier),
+                rate=fare.multiplier,
+                status_bonus=TIER_FLYING_BONUS_PCT[traveller.tier],
             )
         )
     return quotes

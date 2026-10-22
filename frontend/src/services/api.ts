@@ -2,9 +2,14 @@
 // by itself, so nothing here stores or reads a token.
 import type {
   Action,
+  AdminControls,
+  AdminOverview,
   BestFareRequest,
   BestFareResponse,
+  EmailPrefs,
   Needs,
+  PerkAdviceResponse,
+  PerkNudge,
   QuotesResponse,
   ServerState,
 } from "../rules/types.ts";
@@ -50,17 +55,36 @@ async function request<T>(
 
 export const api = {
   login: (loginId: string, password: string) =>
-    request<{ user: { profileId: string | null; name: string } }>(
+    request<{
+      user: { profileId: string | null; name: string; role?: string };
+    }>(
       "POST",
       "/auth/login",
       { loginId, password },
     ),
+  me: () =>
+    request<{ user: { role: "PASSENGER" | "AIRLINE_ADMIN" } }>("GET", "/auth/me"),
+  adminOverview: (signal?: AbortSignal) =>
+    request<AdminOverview>("GET", "/admin/overview", undefined, signal),
   logout: () => request<{ ok: true }>("POST", "/auth/logout", {}),
   state: () => request<ServerState>("GET", "/state"),
   switchTraveller: (profileId: string) =>
     request<{ user: { profileId: string | null } }>("POST", "/demo/switch", {
       profileId,
     }),
+  /** Demo only: restores every demo traveller's trips and points to the saved starting point. */
+  resetDemo: () => request<ServerState>("POST", "/demo/reset", {}),
+  /** Demo only: one other traveller on the flight acts (takes a released seat or adds a bag). */
+  simulateOthers: () => request<ServerState>("POST", "/demo/simulate", {}),
+  /** Demo only: the airline puts one benefit on a 25% points sale on this traveller's flight. */
+  demoSale: (benefit: string) => request<ServerState>("POST", "/demo/sale", { benefit }),
+  emailPrefs: (signal?: AbortSignal) => request<EmailPrefs>("GET", "/me/email", undefined, signal),
+  setEmailPrefs: (body: { email: string; enabled: boolean }) => request<EmailPrefs>("POST", "/me/email", body),
+  adminControls: (signal?: AbortSignal) => request<AdminControls>("GET", "/admin/controls", undefined, signal),
+  adminPolicy: (body: Partial<Pick<AdminControls["policy"], "mode" | "valuePercent" | "centsPerPoint" | "completionBonus">>) =>
+    request<AdminControls>("POST", "/admin/policy", body),
+  adminSale: (body: { flightId: string; benefit: string; discountPct: number }) =>
+    request<AdminControls>("POST", "/admin/sale", body),
   quotes: (
     route: { flightId: string; from: string; to: string; date?: string },
     needs: Needs,
@@ -68,6 +92,20 @@ export const api = {
   ) => request<QuotesResponse>("POST", "/quotes", { ...route, needs }, signal),
   bestFare: (req: BestFareRequest, signal?: AbortSignal) =>
     request<BestFareResponse>("POST", "/assistant/best-fare", req, signal),
+  perkNudge: (signal?: AbortSignal) =>
+    request<{ nudge: PerkNudge | null }>(
+      "GET",
+      "/assistant/perk-nudge",
+      undefined,
+      signal,
+    ),
+  perkAdvice: (message?: string, signal?: AbortSignal) =>
+    request<PerkAdviceResponse>(
+      "POST",
+      "/assistant/perk-advice",
+      { message },
+      signal,
+    ),
   /** `profileId` is dropped: the server acts for the signed-in traveller only. */
   act: (
     action: Exclude<Action, { type: "profile" } | { type: "clear-notice" }>,

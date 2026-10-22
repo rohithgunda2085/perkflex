@@ -229,7 +229,16 @@ export function BookingPage({
                         ? "Priority boarding"
                         : "Standard boarding"}
                   </CheckLine>
-                  <CheckLine>{fmt(q.points)} estimated flight points</CheckLine>
+                  <CheckLine>
+                    {fmt(q.points)} estimated flight points
+                    {q.rate ? (
+                      <small className="earn-working">
+                        {" "}
+                        ({q.rate}x on {money(q.base)}
+                        {q.statusBonus ? `, +${q.statusBonus}% status bonus` : ""})
+                      </small>
+                    ) : null}
+                  </CheckLine>
                   {q.addons.length > 0 && (
                     <div className="add-on-box">
                       <span>YOUR REQUESTED EXTRAS</span>

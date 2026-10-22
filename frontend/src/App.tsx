@@ -33,6 +33,8 @@ import {
   Pill,
 } from "./components/components.tsx";
 import { LoginPage, WelcomeOverlay } from "./auth/Auth.tsx";
+import { AdminPage } from "./pages/AdminPage.tsx";
+import { PresenterGuide } from "./pages/PresenterGuide.tsx";
 import { Assistant, BookingPage } from "./pages/Booking.tsx";
 import type { Search } from "./pages/Booking.tsx";
 import {
@@ -44,6 +46,42 @@ import {
 import type { Confirmation } from "./pages/Checkin.tsx";
 
 type Page = "book" | "checkin" | "trips" | "wallet";
+
+/** The address of each page. Real paths mean a page can be linked to, refreshed, and left with the Back button. */
+const PAGE_PATH: Record<Page, string> = {
+  book: "/book",
+  checkin: "/checkin",
+  trips: "/trips",
+  wallet: "/wallet",
+};
+const ADMIN_PATH = "/admin";
+
+function cleanPath(path: string): string {
+  const p = path.replace(/\/+$/, "");
+  return p === "" ? "/" : p;
+}
+export function pageFromPath(path: string): Page | null {
+  const p = cleanPath(path);
+  const hit = (Object.keys(PAGE_PATH) as Page[]).find((k) => PAGE_PATH[k] === p);
+  return hit ?? null;
+}
+/** Every address the app answers. Anything else shows the not-found page. */
+function isKnownPath(path: string): boolean {
+  const p = cleanPath(path);
+  return p === "/" || p === ADMIN_PATH || p === "/index.html" || pageFromPath(p) !== null;
+}
+
+function NotFoundPage() {
+  return (
+    <div role="alert" className="app-status">
+      <h1>Page not found</h1>
+      <p>That address does not exist in PerkFlex.</p>
+      <button className="button primary" onClick={() => window.location.assign("/")}>
+        Go to PerkFlex
+      </button>
+    </div>
+  );
+}
 type OpenModal =
   | "welcome"
   | "assistant"
@@ -56,6 +94,14 @@ type OpenModal =
 /** Loads the signed-in traveller from the server, or shows the sign-in page. */
 export default function App() {
   const t = useTravellerState();
+  // The airline account lives at /admin and nobody else does. This is decided from who is signed in, before anything
+  // is drawn, so a traveller never sees the airline address (even straight after the airline signed out):
+  //   airline signed in -> the address is /admin;  traveller signed in at /admin -> the address is "/";
+  //   nobody signed in  -> the address is "/" too, so the next person to sign in starts clean.
+  // Setting the address twice does nothing, so doing it while drawing is safe.
+  const here = cleanPath(window.location.pathname);
+  if (t.status === "admin" && here !== ADMIN_PATH) window.history.replaceState(null, "", ADMIN_PATH);
+  else if ((t.status === "ready" || t.status === "signed-out") && here === ADMIN_PATH) window.history.replaceState(null, "", "/");
   if (t.status === "loading")
     return (
       <p role="status" className="app-status">
@@ -71,6 +117,16 @@ export default function App() {
         </button>
       </div>
     );
+  if (t.status === "admin")
+    return (
+      <AdminPage
+        onSignOut={async () => {
+          await api.logout().catch(() => {});
+          t.signedOut();
+        }}
+      />
+    );
+  if (t.state && !isKnownPath(window.location.pathname)) return <NotFoundPage />;
   if (!t.state)
     return (
       <LoginPage
@@ -80,17 +136,28 @@ export default function App() {
       />
     );
   return (
-    <TravellerApp
-      // A new traveller (demo switch) gets a fresh screen.
-      key={t.state.profile.id}
-      server={t.state}
-      busy={t.busy}
-      dispatch={t.dispatch}
-      onSignOut={async () => {
-        await api.logout().catch(() => {});
-        t.signedOut();
-      }}
-    />
+    <>
+      <TravellerApp
+        // A new traveller (demo switch) or a demo reset gets a fresh screen.
+        key={`${t.state.profile.id}:${t.epoch}`}
+        server={t.state}
+        busy={t.busy}
+        dispatch={t.dispatch}
+        onSignOut={async () => {
+          await api.logout().catch(() => {});
+          t.signedOut();
+        }}
+      />
+      {t.state.demo && (
+        <PresenterGuide
+          currentLogin={t.state.profile.id}
+          busy={t.busy}
+          onGo={(id) => void t.dispatch({ type: "profile", id })}
+          onReset={() => void t.dispatch({ type: "demo-reset" })}
+          dispatch={t.dispatch}
+        />
+      )}
+    </>
   );
 }
 
@@ -110,9 +177,13 @@ function TravellerApp({
   const booking = state.bookings[profile.id];
   const hasTrip = Boolean(booking);
   const canSwitch = server.demo && server.travellers.length > 0;
+  // "Reset demo" asks for a second click within five seconds, so it cannot be hit by accident.
+  const [resetArmed, setResetArmed] = useState(false);
   // Someone with a trip starts at check-in; a new traveller starts on Book a flight.
-  const [page, setPage] = useState<Page>(hasTrip ? "checkin" : "book"),
-    [modal, setModal] = useState<OpenModal>(hasTrip ? "welcome" : null),
+  // The address decides the page on load; "/" falls back to check-in (with a trip) or Book a flight.
+  const [startPage] = useState<Page>(() => pageFromPath(window.location.pathname) ?? (hasTrip ? "checkin" : "book"));
+  const [page, setPage] = useState<Page>(startPage),
+    [modal, setModal] = useState<OpenModal>(hasTrip && startPage === "checkin" ? "welcome" : null),
     [assistantStep, setAssistantStep] = useState(0),
     [results, setResults] = useState(false),
     [mobileNav, setMobileNav] = useState(false);
@@ -134,6 +205,27 @@ function TravellerApp({
     );
     return () => window.clearTimeout(timer);
   }, [state.notice]);
+  // Keep the address in step with the page: push a new entry for a move between pages, replace an unknown address.
+  useEffect(() => {
+    const want = PAGE_PATH[page];
+    if (cleanPath(window.location.pathname) === want) return;
+    const known = pageFromPath(window.location.pathname) !== null;
+    if (known) window.history.pushState(null, "", want);
+    else window.history.replaceState(null, "", want);
+  }, [page]);
+  // The Back and Forward buttons move between pages.
+  useEffect(() => {
+    const onPop = () => {
+      const next = pageFromPath(window.location.pathname);
+      if (next) {
+        setPage(next);
+        setModal(null);
+        setMobileNav(false);
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Fares priced by the server for the flight and needs on screen.
   const quotes = useQuotes(
     {
@@ -219,8 +311,10 @@ function TravellerApp({
               onClick={() => navigate("wallet")}
             >
               <Coins size={16} />
-              <strong>{fmt(state.balances[profile.id])}</strong>
-              <span>pts</span>
+              <strong>{fmt(state.wallets.rapidRewards.available)}</strong>
+              <span>Rapid Rewards</span>
+              <strong>{fmt(state.wallets.perkflex.available)}</strong>
+              <span>PerkFlex</span>
             </button>
             <button
               className="profile-button"
@@ -335,6 +429,7 @@ function TravellerApp({
             state={state}
             profile={profile}
             onCheckin={() => navigate("checkin")}
+            dispatch={dispatch}
           />
         )}
       </div>
@@ -351,6 +446,22 @@ function TravellerApp({
             {canSwitch && (
               <button onClick={() => setModal("profile")}>
                 Traveller profiles
+              </button>
+            )}
+            {server.demo && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (!resetArmed) {
+                    setResetArmed(true);
+                    window.setTimeout(() => setResetArmed(false), 5000);
+                    return;
+                  }
+                  setResetArmed(false);
+                  void dispatch({ type: "demo-reset" });
+                }}
+              >
+                {resetArmed ? "Click again to reset the demo" : "Reset demo"}
               </button>
             )}
             <button onClick={() => setModal("info")}>How it works</button>

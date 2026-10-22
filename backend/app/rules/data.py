@@ -73,6 +73,25 @@ SEAT_CASH: dict[SeatClass, int] = {"standard": 15, "preferred": 35, "extra": 80}
 BAG_CASH: tuple[int, ...] = (45, 55, 150)  # dollars for the 1st, 2nd and 3rd bag; later bags cost the last price
 RELEASE_POINTS = {"bag": 800, "preferred": 700, "extra": 1500}
 REDEEM_POINTS = {"bag1": 3000, "bag2": 3500, "preferred": 2200, "extra": 4500}
+# Status bonuses (percent). Mirrors dim_tier_bonus in 30_status_bonus.sql; a test keeps the two in step.
+# Flying bonus: extra Rapid Rewards points for flying. Release bonus: extra PerkFlex points for a release.
+TIER_FLYING_BONUS_PCT: dict[Tier, int] = {"Member": 0, "Silver": 40, "Gold": 60, "Platinum": 120}
+TIER_RELEASE_BONUS_PCT: dict[Tier, int] = {"Member": 0, "Silver": 10, "Gold": 20, "Platinum": 30}
+
+
+def with_bonus(points: int, pct: int) -> int:
+    """points x (1 + pct%), rounded half up: the same rounding the database uses."""
+    return (points * (100 + pct) * 2 + 100) // 200
+
+
+def release_points(base: int, tier: Tier) -> int:
+    return with_bonus(base, TIER_RELEASE_BONUS_PCT[tier])
+
+
+def flying_points(base_fare: int, rate: int, tier: Tier) -> int:
+    return with_bonus(base_fare * rate, TIER_FLYING_BONUS_PCT[tier])
+
+
 TIER_BAGS: dict[Tier, int] = {"Member": 0, "Silver": 1, "Gold": 2, "Platinum": 3}
 
 
